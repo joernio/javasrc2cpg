@@ -12,13 +12,17 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
   JavaParserTypeSolver,
   ReflectionTypeSolver
 }
-import io.shiftleft.codepropertygraph.generated.nodes
-import io.shiftleft.codepropertygraph.generated.nodes.{NewMethod, NewNamespaceBlock}
-import io.shiftleft.semanticcpg.language.types.structure.NamespaceTraversal
-import io.shiftleft.semanticcpg.passes.metadata.MetaDataPass
+import io.shiftleft.codepropertygraph.generated.EdgeTypes
+import io.shiftleft.codepropertygraph.generated.nodes.{
+  NewMethod,
+  NewNamespaceBlock,
+  NewNode,
+  NewTypeDecl
+}
 
 import scala.compat.java8.OptionConverters.RichOptionalGeneric
 import scala.jdk.CollectionConverters._
+import scala.collection.mutable
 
 class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPool: IntervalKeyPool)
     extends ParallelCpgPass[String](cpg, keyPools = Some(keyPool.split(filenames.size))) {
@@ -44,7 +48,7 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
 
     r.getResult.asScala match {
       case Some(result) if result.getParsed == Parsedness.PARSED =>
-        createAst(result, part)
+        new AstCreator().createAst(result, part)
       case _ =>
         println("Cannot parse: " + part)
         println("Parsedness: " + r.getResult.asScala.map(_.getParsed).getOrElse("None"))
@@ -54,24 +58,33 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
     }
   }
 
-  private def createAst(parserResult: CompilationUnit, filename: String): Iterator[DiffGraph] = {
-    println(parserResult.getTypes)
+}
 
-    implicit val diffGraph: DiffGraph.Builder = DiffGraph.newBuilder
+class AstCreator {
+
+  val stack: mutable.Stack[NewNode] = mutable.Stack()
+  val diffGraph: DiffGraph.Builder  = DiffGraph.newBuilder
+
+  def createAst(parserResult: CompilationUnit, filename: String): Iterator[DiffGraph] = {
+
     parserResult.getPackageDeclaration.asScala.foreach { packageDecl =>
-      addNamespaceBlock(packageDecl, filename)
+      val namespaceBlock = addNamespaceBlock(packageDecl, filename)
+      stack.push(namespaceBlock)
     }
 
     parserResult.getTypes.asScala.foreach { typ =>
+      stack.push(addTypeDeclNode(typ))
       typ.getMethods.asScala.foreach(m => addMethod(m, typ))
+      stack.pop()
     }
 
     Iterator(diffGraph.build)
   }
 
-  private def addNamespaceBlock(packageDecl: PackageDeclaration, filename: String)(implicit
-      diffGraph: DiffGraph.Builder
-  ): Unit = {
+  private def addNamespaceBlock(
+      packageDecl: PackageDeclaration,
+      filename: String
+  ): NewNamespaceBlock = {
     val absolutePath = new java.io.File(filename).toPath.toAbsolutePath.normalize().toString
     val packageName  = packageDecl.getName.toString
     val namespaceBlock = NewNamespaceBlock()
@@ -80,18 +93,37 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
       .filename(absolutePath)
       .order(1)
     diffGraph.addNode(namespaceBlock)
+    namespaceBlock
   }
 
-  private def addMethod(methodDeclaration: MethodDeclaration, typeDecl: TypeDeclaration[_])(implicit
-      diffGraph: DiffGraph.Builder
+  private def addTypeDeclNode(typ: TypeDeclaration[_]): NewTypeDecl = {
+    val typeDecl = NewTypeDecl()
+      .name(typ.getNameAsString)
+      .fullName(typ.getFullyQualifiedName.asScala.getOrElse(""))
+    diffGraph.addNode(typeDecl)
+    diffGraph.addEdge(stack.top, typeDecl, EdgeTypes.AST)
+    typeDecl
+  }
+
+  private def addMethod(
+      methodDeclaration: MethodDeclaration,
+      typeDecl: TypeDeclaration[_]
   ): Unit = {
-    val fullName = typeDecl.getFullyQualifiedName.asScala.getOrElse(
-      ""
-    ) + ":" + methodDeclaration.getNameAsString + ":" + methodDeclaration.getTypeAsString
+    val fullName = methodFullName(typeDecl, methodDeclaration)
     val methodNode = NewMethod()
       .name(methodDeclaration.getNameAsString)
       .fullName(fullName)
     diffGraph.addNode(methodNode)
+    diffGraph.addEdge(stack.top, methodNode, EdgeTypes.AST)
+  }
+
+  private def methodFullName(
+      typeDecl: TypeDeclaration[_],
+      methodDeclaration: MethodDeclaration
+  ): String = {
+    typeDecl.getFullyQualifiedName.asScala.getOrElse(
+      ""
+    ) + ":" + methodDeclaration.getNameAsString + ":" + methodDeclaration.getTypeAsString
   }
 
 }
