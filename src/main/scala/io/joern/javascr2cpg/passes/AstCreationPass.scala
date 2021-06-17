@@ -1,7 +1,8 @@
 package io.joern.javascr2cpg.passes
 
-import com.github.javaparser.ast.CompilationUnit
+import com.github.javaparser.ast.{CompilationUnit, PackageDeclaration}
 import com.github.javaparser.ast.Node.Parsedness
+import com.github.javaparser.ast.body.{MethodDeclaration, TypeDeclaration}
 import com.github.javaparser.{JavaParser, ParserConfiguration}
 import com.github.javaparser.symbolsolver.JavaSymbolSolver
 import io.shiftleft.codepropertygraph.Cpg
@@ -12,6 +13,7 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
   ReflectionTypeSolver
 }
 import io.shiftleft.codepropertygraph.generated.nodes
+import io.shiftleft.codepropertygraph.generated.nodes.{NewMethod, NewNamespaceBlock}
 import io.shiftleft.semanticcpg.language.types.structure.NamespaceTraversal
 import io.shiftleft.semanticcpg.passes.metadata.MetaDataPass
 
@@ -55,21 +57,41 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
   private def createAst(parserResult: CompilationUnit, filename: String): Iterator[DiffGraph] = {
     println(parserResult.getTypes)
 
-    val diffGraph    = DiffGraph.newBuilder
-    val absolutePath = new java.io.File(filename).toPath.toAbsolutePath.normalize().toString
+    implicit val diffGraph: DiffGraph.Builder = DiffGraph.newBuilder
     parserResult.getPackageDeclaration.asScala.foreach { packageDecl =>
-      val packageName = packageDecl.getName.toString
-      val namespaceBlock = nodes
-        .NewNamespaceBlock()
-        .name(packageName.split("\\.").lastOption.getOrElse(""))
-        .fullName(packageName)
-        .filename(absolutePath)
-        .order(1)
+      addNamespaceBlock(packageDecl, filename)
+    }
 
-      diffGraph.addNode(namespaceBlock)
+    parserResult.getTypes.asScala.foreach { typ =>
+      typ.getMethods.asScala.foreach(m => addMethod(m, typ))
     }
 
     Iterator(diffGraph.build)
+  }
+
+  private def addNamespaceBlock(packageDecl: PackageDeclaration, filename: String)(implicit
+      diffGraph: DiffGraph.Builder
+  ): Unit = {
+    val absolutePath = new java.io.File(filename).toPath.toAbsolutePath.normalize().toString
+    val packageName  = packageDecl.getName.toString
+    val namespaceBlock = NewNamespaceBlock()
+      .name(packageName.split("\\.").lastOption.getOrElse(""))
+      .fullName(packageName)
+      .filename(absolutePath)
+      .order(1)
+    diffGraph.addNode(namespaceBlock)
+  }
+
+  private def addMethod(methodDeclaration: MethodDeclaration, typeDecl: TypeDeclaration[_])(implicit
+      diffGraph: DiffGraph.Builder
+  ): Unit = {
+    val fullName = typeDecl.getFullyQualifiedName.asScala.getOrElse(
+      ""
+    ) + ":" + methodDeclaration.getNameAsString + ":" + methodDeclaration.getTypeAsString
+    val methodNode = NewMethod()
+      .name(methodDeclaration.getNameAsString)
+      .fullName(fullName)
+    diffGraph.addNode(methodNode)
   }
 
 }

@@ -9,6 +9,9 @@ class NamespaceBlockTests extends JavaSrcCodeToCpgFixture {
   override val code =
     """
       |package a.b.c;
+      |class Foo {
+      |  int foo () { return 0; }
+      |}
       |""".stripMargin
 
   "should contain two namespace blocks in total" in {
@@ -28,6 +31,14 @@ class NamespaceBlockTests extends JavaSrcCodeToCpgFixture {
     x.filename should not be ""
     x.fullName shouldBe "a.b.c"
     x.order shouldBe 1
+  }
+
+  "should allow traversing from namespace block to method" in {
+    cpg.namespaceBlock.filenameNot(FileTraversal.UNKNOWN).method.name.l shouldBe List()
+  }
+
+  "should allow traversing from namespace block to type declaration" in {
+    cpg.namespaceBlock.filenameNot(FileTraversal.UNKNOWN).typeDecl.name.l shouldBe List("Foo")
   }
 
 }
