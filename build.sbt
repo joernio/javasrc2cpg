@@ -1,4 +1,4 @@
-name := "ghidra2cpg"
+name := "javasrc2cpg"
 organization := "io.joern"
 
 version := "0.1"
@@ -12,13 +12,11 @@ resolvers += Resolver.mavenLocal
 trapExit := false
 
 libraryDependencies ++= Seq(
-  "io.shiftleft" % "ghidra" % "9.2_PUBLIC_20201113" ,
   "io.shiftleft"  %% "codepropertygraph"        % cpgVersion,
-  "io.shiftleft"  %% "codepropertygraph-protos" % cpgVersion,
   "io.shiftleft"  %% "semanticcpg"              % cpgVersion,
   "io.shiftleft"  %% "dataflowengineoss"        % cpgVersion,
   "io.shiftleft"  %% "semanticcpg-tests"        % cpgVersion       % Test classifier "tests",
-  "commons-io"     % "commons-io"               % "2.7",
+   "com.github.javaparser" % "javaparser-core" % "3.22.1",
   "org.scalatest" %% "scalatest"                % scalatestVersion % Test
 )
 
