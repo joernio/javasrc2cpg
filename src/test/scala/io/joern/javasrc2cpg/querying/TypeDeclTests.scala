@@ -43,5 +43,4 @@ class TypeDeclTests extends JavaSrcCodeToCpgFixture {
     x.filename shouldBe FileTraversal.UNKNOWN
   }
 
-
 }

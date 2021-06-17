@@ -31,16 +31,27 @@ class FileTests extends JavaSrcCodeToCpgFixture {
   }
 
   "should allow traversing from file to its namespace blocks" in {
-    cpg.file.nameNot(FileTraversal.UNKNOWN).namespaceBlock.name.toSet shouldBe Set("a.b", "java.lang")
+    cpg.file.nameNot(FileTraversal.UNKNOWN).namespaceBlock.name.toSet shouldBe Set(
+      "a.b",
+      "java.lang"
+    )
   }
 
   "should allow traversing from file to its methods via namespace block" in {
-    cpg.file.name("/a/b/Foo.class".replace("/", s"\\${JFile.separator}")).method.name.toSet shouldBe Set("<init>", "bar")
+    cpg.file
+      .name("/a/b/Foo.class".replace("/", s"\\${JFile.separator}"))
+      .method
+      .name
+      .toSet shouldBe Set("<init>", "bar")
   }
 
   "should allow traversing from file to its type declarations via namespace block" in {
-    cpg.file.nameNot(FileTraversal.UNKNOWN).typeDecl.name.toSet shouldBe Set("Foo", "Object", "Class", "String")
+    cpg.file.nameNot(FileTraversal.UNKNOWN).typeDecl.name.toSet shouldBe Set(
+      "Foo",
+      "Object",
+      "Class",
+      "String"
+    )
   }
 
 }
-

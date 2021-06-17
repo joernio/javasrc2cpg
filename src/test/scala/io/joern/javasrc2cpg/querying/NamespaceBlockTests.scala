@@ -15,29 +15,29 @@ class NamespaceBlockTests extends JavaSrcCodeToCpgFixture {
       |}
       |""".stripMargin
 
-  "should contain three namespace blocks in total (<global>, java.lang.object, foo.bar)" in {
-    cpg.namespaceBlock.size shouldBe 5
+  "should contain two namespace blocks in total (<global>, foo.bar)" in {
+    cpg.namespaceBlock.size shouldBe 2
     // There is no global namespace block in Java
   }
 
   "should contain correct namespace block for known file" in {
-    val List(x) = cpg.namespaceBlock.filename("/foo/bar/A.class".replace("/", s"\\${JFile.separator}")).l
-    x.name shouldBe "foo.bar"
+    val List(x) = cpg.namespaceBlock.filename(".*.java").l
+    x.name shouldBe "bar"
     x.filename should not be ""
-    x.fullName shouldBe s"${JFile.separator}foo${JFile.separator}bar${JFile.separator}A.class:foo.bar"
+    x.fullName shouldBe s"foo.bar"
     x.order shouldBe 1
   }
 
   "should allow traversing from namespace block to method" in {
-    cpg.namespaceBlock.filename("/foo/bar/A.class".replace("/", s"\\${JFile.separator}")).typeDecl.method.name.toSet shouldBe Set("foo", "<init>")
+    cpg.namespaceBlock.filename(".*java").typeDecl.method.name.toSet shouldBe Set("foo")
   }
 
   "should allow traversing from namespace block to type declaration" in {
-    cpg.namespaceBlock.filename("/foo/bar/A.class".replace("/", s"\\${JFile.separator}")).typeDecl.name.l shouldBe List("A")
+    cpg.namespaceBlock.filename(".*java").typeDecl.name.l shouldBe List("A")
   }
 
   "should allow traversing from namespace block to namespace" in {
-    cpg.namespaceBlock.filename("/foo/bar/A.class".replace("/", s"\\${JFile.separator}")).namespace.name.l shouldBe List("foo.bar")
+    cpg.namespaceBlock.filename(".*java").namespace.name.l shouldBe List("foo.bar")
   }
 
 }
