@@ -38,19 +38,19 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
     combinedTypeSolver
   }
 
-  override def runOnPart(part: String): Iterator[DiffGraph] = {
+  override def runOnPart(filename: String): Iterator[DiffGraph] = {
     val solver         = typeSolver()
     val symbolResolver = new JavaSymbolSolver(solver);
 
     val parserConfig = new ParserConfiguration().setSymbolResolver(symbolResolver)
     val parser       = new JavaParser(parserConfig)
-    val r            = parser.parse(new java.io.File(part))
+    val r            = parser.parse(new java.io.File(filename))
 
     r.getResult.asScala match {
       case Some(result) if result.getParsed == Parsedness.PARSED =>
-        new AstCreator().createAst(result, part)
+        new AstCreator(filename).createAst(result)
       case _ =>
-        println("Cannot parse: " + part)
+        println("Cannot parse: " + filename)
         println("Parsedness: " + r.getResult.asScala.map(_.getParsed).getOrElse("None"))
         println("Problems: ")
         r.getProblems.asScala.foreach(println)
@@ -60,20 +60,20 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
 
 }
 
-class AstCreator {
+class AstCreator(filename: String) {
 
   val stack: mutable.Stack[NewNode] = mutable.Stack()
   val diffGraph: DiffGraph.Builder  = DiffGraph.newBuilder
 
-  def createAst(parserResult: CompilationUnit, filename: String): Iterator[DiffGraph] = {
+  def createAst(parserResult: CompilationUnit): Iterator[DiffGraph] = {
 
     parserResult.getPackageDeclaration.asScala.foreach { packageDecl =>
       val namespaceBlock = addNamespaceBlock(packageDecl, filename)
       stack.push(namespaceBlock)
     }
 
-    parserResult.getTypes.asScala.foreach { typ =>
-      stack.push(addTypeDeclNode(typ))
+    parserResult.getTypes.asScala.zipWithIndex.foreach { case (typ, i) =>
+      stack.push(addTypeDeclNode(typ, i + 1))
       typ.getMethods.asScala.foreach(m => addMethod(m, typ))
       stack.pop()
     }
@@ -96,10 +96,20 @@ class AstCreator {
     namespaceBlock
   }
 
-  private def addTypeDeclNode(typ: TypeDeclaration[_]): NewTypeDecl = {
+  private def addTypeDeclNode(typ: TypeDeclaration[_], siblingNum: Int): NewTypeDecl = {
+    val baseTypeFullNames = typ
+      .asClassOrInterfaceDeclaration()
+      .getExtendedTypes
+      .asScala
+      .map(_.resolve().getQualifiedName)
+      .toList
+
     val typeDecl = NewTypeDecl()
       .name(typ.getNameAsString)
       .fullName(typ.getFullyQualifiedName.asScala.getOrElse(""))
+      .inheritsFromTypeFullName(baseTypeFullNames)
+      .order(siblingNum)
+      .filename(filename)
     diffGraph.addNode(typeDecl)
     diffGraph.addEdge(stack.top, typeDecl, EdgeTypes.AST)
     typeDecl
