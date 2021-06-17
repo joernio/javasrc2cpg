@@ -1,5 +1,6 @@
 package io.joern.javascr2cpg.passes
 
+import com.github.javaparser.ast.CompilationUnit
 import com.github.javaparser.ast.Node.Parsedness
 import com.github.javaparser.{JavaParser, ParserConfiguration}
 import com.github.javaparser.symbolsolver.JavaSymbolSolver
@@ -10,6 +11,9 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
   JavaParserTypeSolver,
   ReflectionTypeSolver
 }
+import io.shiftleft.codepropertygraph.generated.nodes
+import io.shiftleft.semanticcpg.language.types.structure.NamespaceTraversal
+import io.shiftleft.semanticcpg.passes.metadata.MetaDataPass
 
 import scala.compat.java8.OptionConverters.RichOptionalGeneric
 import scala.jdk.CollectionConverters._
@@ -38,12 +42,34 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
 
     r.getResult.asScala match {
       case Some(result) if result.getParsed == Parsedness.PARSED =>
-        println(result.getTypes)
+        createAst(result, part)
       case _ =>
         println("Cannot parse: " + part)
         println("Parsedness: " + r.getResult.asScala.map(_.getParsed).getOrElse("None"))
+        println("Problems: ")
         r.getProblems.asScala.foreach(println)
+        Iterator()
     }
-    Iterator()
   }
+
+  private def createAst(parserResult: CompilationUnit, filename: String): Iterator[DiffGraph] = {
+    println(parserResult.getTypes)
+
+    val diffGraph    = DiffGraph.newBuilder
+    val absolutePath = new java.io.File(filename).toPath.toAbsolutePath.normalize().toString
+    parserResult.getPackageDeclaration.asScala.foreach { packageDecl =>
+      val packageName = packageDecl.getName.toString
+      val namespaceBlock = nodes
+        .NewNamespaceBlock()
+        .name(packageName.split("\\.").lastOption.getOrElse(""))
+        .fullName(packageName)
+        .filename(absolutePath)
+        .order(1)
+
+      diffGraph.addNode(namespaceBlock)
+    }
+
+    Iterator(diffGraph.build)
+  }
+
 }
