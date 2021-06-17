@@ -7,8 +7,11 @@ class AstTests extends JavaSrcCodeToCpgFixture {
 
   override val code =
     """
-      |int foo() {
-      |  return 1;
+      |package com.foo;
+      |public class Test {
+      | public static void foo() {
+      |    System.out.println("Hello World");
+      | }
       |}
       |""".stripMargin
 
