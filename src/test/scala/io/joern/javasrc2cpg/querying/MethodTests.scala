@@ -2,9 +2,11 @@ package io.joern.javasrc2cpg.querying
 
 import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
 import io.shiftleft.semanticcpg.language._
+import org.scalatest.Ignore
 
 import java.io.File
 
+@Ignore
 class MethodTests extends JavaSrcCodeToCpgFixture {
 
   override val code: String =
