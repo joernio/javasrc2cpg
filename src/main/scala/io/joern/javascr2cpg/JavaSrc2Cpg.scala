@@ -4,6 +4,7 @@ import io.joern.javascr2cpg.passes.AstCreationPass
 import io.shiftleft.codepropertygraph.Cpg
 import io.shiftleft.passes.IntervalKeyPool
 import io.shiftleft.semanticcpg.passes.metadata.MetaDataPass
+import io.shiftleft.semanticcpg.passes.namespacecreator.NamespaceCreator
 import io.shiftleft.x2cpg.SourceFiles
 import io.shiftleft.x2cpg.X2Cpg.newEmptyCpg
 
@@ -24,6 +25,9 @@ class JavaSrc2Cpg {
     val astCreator      = new AstCreationPass(sourceCodePath, sourceFileNames, cpg, methodKeyPool)
     metaDataPass.createAndApply()
     astCreator.createAndApply()
+
+    new NamespaceCreator(cpg).createAndApply()
+
     cpg
   }
 
