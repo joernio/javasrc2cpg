@@ -2,7 +2,7 @@ package io.joern.javascr2cpg.passes
 
 import com.github.javaparser.ast.{CompilationUnit, PackageDeclaration}
 import com.github.javaparser.ast.Node.Parsedness
-import com.github.javaparser.ast.body.{MethodDeclaration, TypeDeclaration}
+import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
 import com.github.javaparser.{JavaParser, ParserConfiguration}
 import com.github.javaparser.symbolsolver.JavaSymbolSolver
 import io.shiftleft.codepropertygraph.Cpg
@@ -15,6 +15,8 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
 import io.shiftleft.codepropertygraph.generated.EdgeTypes
 import io.shiftleft.codepropertygraph.generated.nodes.{
   NewMethod,
+  NewMethodParameterIn,
+  NewMethodReturn,
   NewNamespaceBlock,
   NewNode,
   NewTypeDecl
@@ -133,6 +135,24 @@ class AstCreator(filename: String) {
       .lineNumber(methodDeclaration.getBegin.map(x => new Integer(x.line)).asScala)
     diffGraph.addNode(methodNode)
     stack.headOption.foreach(head => diffGraph.addEdge(head, methodNode, EdgeTypes.AST))
+
+    val methodReturnNode =
+      NewMethodReturn().order(1).typeFullName(methodDeclaration.getType.resolve().describe())
+    diffGraph.addNode(methodReturnNode)
+    diffGraph.addEdge(methodNode, methodReturnNode, EdgeTypes.AST)
+    stack.push(methodNode)
+    methodDeclaration.getParameters.asScala.zipWithIndex.foreach { case (p, i) =>
+      addParameter(p, i + 2)
+    }
+    stack.pop()
+  }
+
+  private def addParameter(parameter: Parameter, childNum: Int): Unit = {
+    val parameterNode = NewMethodParameterIn()
+      .name(parameter.getName.toString)
+      .typeFullName(parameter.getType.resolve().describe())
+      .order(childNum)
+    stack.headOption.foreach(head => diffGraph.addEdge(head, parameterNode, EdgeTypes.AST))
   }
 
   private def methodFullName(
