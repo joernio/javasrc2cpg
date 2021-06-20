@@ -6,7 +6,6 @@ import org.scalatest.Ignore
 
 import java.io.File
 
-@Ignore
 class MethodTests extends JavaSrcCodeToCpgFixture {
 
   override val code: String =
@@ -26,7 +25,7 @@ class MethodTests extends JavaSrcCodeToCpgFixture {
     x.isExternal shouldBe false
     x.order shouldBe 1
     x.filename.startsWith(File.separator) shouldBe true
-    x.filename.endsWith(".class") shouldBe true
+    x.filename.endsWith(".java") shouldBe true
     x.lineNumber shouldBe Some(2)
     // x.lineNumberEnd shouldBe Some(3)
     // x.columnNumber shouldBe Some(2)

@@ -74,7 +74,7 @@ class AstCreator(filename: String) {
 
     parserResult.getTypes.asScala.zipWithIndex.foreach { case (typ, i) =>
       stack.push(addTypeDeclNode(typ, i + 1))
-      typ.getMethods.asScala.foreach(m => addMethod(m, typ))
+      typ.getMethods.asScala.zipWithIndex.foreach { case (m, i) => addMethod(m, typ, i + 1) }
       stack.pop()
     }
 
@@ -111,29 +111,45 @@ class AstCreator(filename: String) {
       .order(siblingNum)
       .filename(filename)
     diffGraph.addNode(typeDecl)
-    diffGraph.addEdge(stack.top, typeDecl, EdgeTypes.AST)
+    stack.headOption.foreach(head => diffGraph.addEdge(head, typeDecl, EdgeTypes.AST))
     typeDecl
   }
 
   private def addMethod(
       methodDeclaration: MethodDeclaration,
-      typeDecl: TypeDeclaration[_]
+      typeDecl: TypeDeclaration[_],
+      childNum: Int
   ): Unit = {
     val fullName = methodFullName(typeDecl, methodDeclaration)
+    val code     = methodDeclaration.getDeclarationAsString().trim
     val methodNode = NewMethod()
       .name(methodDeclaration.getNameAsString)
       .fullName(fullName)
+      .code(code)
+      .signature(methodDeclaration.getTypeAsString + paramListSignature(methodDeclaration))
+      .isExternal(false)
+      .order(childNum)
+      .filename(filename)
+      .lineNumber(methodDeclaration.getBegin.map(x => new Integer(x.line)).asScala)
     diffGraph.addNode(methodNode)
-    diffGraph.addEdge(stack.top, methodNode, EdgeTypes.AST)
+    stack.headOption.foreach(head => diffGraph.addEdge(head, methodNode, EdgeTypes.AST))
   }
 
   private def methodFullName(
       typeDecl: TypeDeclaration[_],
       methodDeclaration: MethodDeclaration
   ): String = {
-    typeDecl.getFullyQualifiedName.asScala.getOrElse(
+    val typeName = typeDecl.getFullyQualifiedName.asScala.getOrElse(
       ""
-    ) + ":" + methodDeclaration.getNameAsString + ":" + methodDeclaration.getTypeAsString
+    )
+    typeName + "." + methodDeclaration.getNameAsString + ":" + methodDeclaration.getTypeAsString + paramListSignature(
+      methodDeclaration
+    )
+  }
+
+  private def paramListSignature(methodDeclaration: MethodDeclaration) = {
+    val paramTypes = methodDeclaration.getParameters.asScala.map(_.getType.resolve().describe())
+    "(" + paramTypes.mkString(",") + ")"
   }
 
 }
