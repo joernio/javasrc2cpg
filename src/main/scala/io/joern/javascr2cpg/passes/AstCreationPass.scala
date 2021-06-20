@@ -3,6 +3,29 @@ package io.joern.javascr2cpg.passes
 import com.github.javaparser.ast.{CompilationUnit, PackageDeclaration}
 import com.github.javaparser.ast.Node.Parsedness
 import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
+import com.github.javaparser.ast.stmt.{
+  AssertStmt,
+  BlockStmt,
+  BreakStmt,
+  ContinueStmt,
+  EmptyStmt,
+  ExplicitConstructorInvocationStmt,
+  ExpressionStmt,
+  ForEachStmt,
+  ForStmt,
+  IfStmt,
+  LabeledStmt,
+  LocalClassDeclarationStmt,
+  LocalRecordDeclarationStmt,
+  ReturnStmt,
+  SwitchStmt,
+  SynchronizedStmt,
+  ThrowStmt,
+  TryStmt,
+  UnparsableStmt,
+  WhileStmt,
+  YieldStmt
+}
 import com.github.javaparser.{JavaParser, ParserConfiguration}
 import com.github.javaparser.symbolsolver.JavaSymbolSolver
 import io.shiftleft.codepropertygraph.Cpg
@@ -122,6 +145,64 @@ class AstCreator(filename: String) {
       typeDecl: TypeDeclaration[_],
       childNum: Int
   ): Unit = {
+    val methodNode = addMethodNode(methodDeclaration, typeDecl, childNum)
+    stack.push(methodNode)
+    methodDeclaration.getParameters.asScala.zipWithIndex.foreach { case (p, i) =>
+      addParameter(p, i + 1)
+    }
+    val methodReturnNode = addMethodReturnNode(methodDeclaration)
+    diffGraph.addEdge(methodNode, methodReturnNode, EdgeTypes.AST)
+
+    addMethodBody(methodDeclaration)
+
+    stack.pop()
+  }
+
+  private def addMethodBody(methodDeclaration: MethodDeclaration) = {
+    methodDeclaration.getBody.asScala.foreach { body =>
+      body.getStatements.asScala.foreach {
+        case x: AssertStmt                        =>
+        case x: BlockStmt                         =>
+        case x: BreakStmt                         =>
+        case x: ContinueStmt                      =>
+        case x: EmptyStmt                         =>
+        case x: ExplicitConstructorInvocationStmt =>
+        case x: ExpressionStmt                    =>
+        case x: ForEachStmt                       =>
+        case x: ForStmt                           =>
+        case x: IfStmt                            =>
+        case x: LabeledStmt                       =>
+        case x: LocalClassDeclarationStmt         =>
+        case x: LocalRecordDeclarationStmt        =>
+        case x: ReturnStmt                        =>
+        case x: SwitchStmt                        =>
+        case x: SynchronizedStmt                  =>
+        case x: ThrowStmt                         =>
+        case x: TryStmt                           =>
+        case x: UnparsableStmt                    =>
+        case x: WhileStmt                         =>
+        case x: YieldStmt                         =>
+        case _                                    =>
+      }
+    }
+  }
+
+  private def addMethodReturnNode(methodDeclaration: MethodDeclaration) = {
+    val methodReturnNode =
+      NewMethodReturn()
+        .order(methodDeclaration.getParameters.size + 2)
+        .typeFullName(methodDeclaration.getType.resolve().describe())
+        .code(methodDeclaration.getTypeAsString)
+        .lineNumber(methodDeclaration.getType.getBegin.map(x => new Integer(x.line)).asScala)
+    diffGraph.addNode(methodReturnNode)
+    methodReturnNode
+  }
+
+  private def addMethodNode(
+      methodDeclaration: MethodDeclaration,
+      typeDecl: TypeDeclaration[_],
+      childNum: Int
+  ) = {
     val fullName = methodFullName(typeDecl, methodDeclaration)
     val code     = methodDeclaration.getDeclarationAsString().trim
     val methodNode = NewMethod()
@@ -135,22 +216,7 @@ class AstCreator(filename: String) {
       .lineNumber(methodDeclaration.getBegin.map(x => new Integer(x.line)).asScala)
     diffGraph.addNode(methodNode)
     stack.headOption.foreach(head => diffGraph.addEdge(head, methodNode, EdgeTypes.AST))
-
-    stack.push(methodNode)
-    methodDeclaration.getParameters.asScala.zipWithIndex.foreach { case (p, i) =>
-      addParameter(p, i + 1)
-    }
-
-    val methodReturnNode =
-      NewMethodReturn()
-        .order(methodDeclaration.getParameters.size + 2)
-        .typeFullName(methodDeclaration.getType.resolve().describe())
-        .code(methodDeclaration.getTypeAsString)
-        .lineNumber(methodDeclaration.getType.getBegin.map(x => new Integer(x.line)).asScala)
-    diffGraph.addEdge(methodNode, methodReturnNode, EdgeTypes.AST)
-    diffGraph.addNode(methodReturnNode)
-
-    stack.pop()
+    methodNode
   }
 
   private def addParameter(parameter: Parameter, childNum: Int): Unit = {
