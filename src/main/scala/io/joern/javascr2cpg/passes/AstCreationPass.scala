@@ -142,7 +142,7 @@ class AstCreator(filename: String) {
     diffGraph.addEdge(methodNode, methodReturnNode, EdgeTypes.AST)
     stack.push(methodNode)
     methodDeclaration.getParameters.asScala.zipWithIndex.foreach { case (p, i) =>
-      addParameter(p, i + 2)
+      addParameter(p, i + 1)
     }
     stack.pop()
   }
@@ -150,8 +150,11 @@ class AstCreator(filename: String) {
   private def addParameter(parameter: Parameter, childNum: Int): Unit = {
     val parameterNode = NewMethodParameterIn()
       .name(parameter.getName.toString)
+      .code(parameter.toString)
       .typeFullName(parameter.getType.resolve().describe())
       .order(childNum)
+      .lineNumber(parameter.getBegin.map(x => new Integer(x.line)).asScala)
+      .columnNumber(parameter.getBegin.map(x => new Integer(x.column)).asScala)
     stack.headOption.foreach(head => diffGraph.addEdge(head, parameterNode, EdgeTypes.AST))
   }
 
