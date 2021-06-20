@@ -4,7 +4,6 @@ import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
 import io.shiftleft.semanticcpg.language._
 import org.scalatest.Ignore
 
-@Ignore
 class MethodReturnTests extends JavaSrcCodeToCpgFixture {
 
   override val code: String =
@@ -17,9 +16,7 @@ class MethodReturnTests extends JavaSrcCodeToCpgFixture {
     val List(x) = cpg.method.name("foo").methodReturn.typeFullName("int").l
     x.code shouldBe "int"
     x.typeFullName shouldBe "int"
-    // I think line 2 would be correct but close enough
-    // given that it's bytecode
-    x.lineNumber shouldBe Some(1)
+    x.lineNumber shouldBe Some(2)
     // we expect the METHOD_RETURN node to be the right-most
     // child so that when traversing the AST from left to
     // right in CFG construction, we visit it last.
@@ -27,7 +24,7 @@ class MethodReturnTests extends JavaSrcCodeToCpgFixture {
   }
 
   "should allow traversing to method" in {
-    cpg.methodReturn.code("int").method.name.l shouldBe List("foo", "hashCode")
+    cpg.methodReturn.code("int").method.name.l shouldBe List("foo")
   }
 
 }

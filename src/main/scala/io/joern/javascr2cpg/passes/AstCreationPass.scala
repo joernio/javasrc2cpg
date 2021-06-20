@@ -136,14 +136,20 @@ class AstCreator(filename: String) {
     diffGraph.addNode(methodNode)
     stack.headOption.foreach(head => diffGraph.addEdge(head, methodNode, EdgeTypes.AST))
 
-    val methodReturnNode =
-      NewMethodReturn().order(1).typeFullName(methodDeclaration.getType.resolve().describe())
-    diffGraph.addNode(methodReturnNode)
-    diffGraph.addEdge(methodNode, methodReturnNode, EdgeTypes.AST)
     stack.push(methodNode)
     methodDeclaration.getParameters.asScala.zipWithIndex.foreach { case (p, i) =>
       addParameter(p, i + 1)
     }
+
+    val methodReturnNode =
+      NewMethodReturn()
+        .order(methodDeclaration.getParameters.size + 2)
+        .typeFullName(methodDeclaration.getType.resolve().describe())
+        .code(methodDeclaration.getTypeAsString)
+        .lineNumber(methodDeclaration.getType.getBegin.map(x => new Integer(x.line)).asScala)
+    diffGraph.addEdge(methodNode, methodReturnNode, EdgeTypes.AST)
+    diffGraph.addNode(methodReturnNode)
+
     stack.pop()
   }
 
