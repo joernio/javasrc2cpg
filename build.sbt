@@ -23,3 +23,4 @@ libraryDependencies ++= Seq(
 enablePlugins(JavaAppPackaging)
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
+       	 
