@@ -7,7 +7,6 @@ import org.scalatest.Ignore
 
 import java.io.{File => JFile}
 
-@Ignore
 class FileTests extends JavaSrcCodeToCpgFixture {
 
   override val code: String =
@@ -16,41 +15,35 @@ class FileTests extends JavaSrcCodeToCpgFixture {
       | class Foo { int bar() { return 1; } }
       |""".stripMargin
 
-  "should contain four file nodes in total with order=1 (java.lang.Object|Class|String and a.b.Foo)" in {
-    cpg.file.order.l shouldBe List(0, 1, 1, 1, 1)
+  "should contain two file nodes in total with correct order" in {
+    cpg.file.order.l shouldBe List(0, 0)
     cpg.file.name(FileTraversal.UNKNOWN).size shouldBe 1
-    cpg.file.nameNot(FileTraversal.UNKNOWN).size shouldBe 4
+    cpg.file.nameNot(FileTraversal.UNKNOWN).size shouldBe 1
   }
 
-  "should contain exactly four non-placeholder file with absolute path in `name`" in {
-    val List(u, v, _, _) = cpg.file.nameNot(FileTraversal.UNKNOWN).l
+  "should contain exactly one non-placeholder file with absolute path in `name`" in {
+    val List(u) = cpg.file.nameNot(FileTraversal.UNKNOWN).l
     u.name should startWith(JFile.separator)
-    u.hash.isDefined shouldBe true
-    v.name should startWith(JFile.separator)
-    v.hash.isDefined shouldBe false
+    u.hash.isDefined shouldBe false
   }
 
   "should allow traversing from file to its namespace blocks" in {
     cpg.file.nameNot(FileTraversal.UNKNOWN).namespaceBlock.name.toSet shouldBe Set(
-      "a.b",
-      "java.lang"
+      "b"
     )
   }
 
   "should allow traversing from file to its methods via namespace block" in {
     cpg.file
-      .name("/a/b/Foo.class".replace("/", s"\\${JFile.separator}"))
+      .name(".*.java".replace("/", s"\\${JFile.separator}"))
       .method
       .name
-      .toSet shouldBe Set("<init>", "bar")
+      .toSet shouldBe Set("bar")
   }
 
   "should allow traversing from file to its type declarations via namespace block" in {
     cpg.file.nameNot(FileTraversal.UNKNOWN).typeDecl.name.toSet shouldBe Set(
-      "Foo",
-      "Object",
-      "Class",
-      "String"
+      "Foo"
     )
   }
 

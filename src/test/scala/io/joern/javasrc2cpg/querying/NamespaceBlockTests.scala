@@ -36,8 +36,8 @@ class NamespaceBlockTests extends JavaSrcCodeToCpgFixture {
     cpg.namespaceBlock.filename(".*java").typeDecl.name.l shouldBe List("A")
   }
 
-//  "should allow traversing from namespace block to namespace" in {
-//    cpg.namespaceBlock.filename(".*java").namespace.name.l shouldBe List("foo.bar")
-//  }
+  "should allow traversing from namespace block to namespace" in {
+    cpg.namespaceBlock.filename(".*java").namespace.name.l shouldBe List("bar")
+  }
 
 }

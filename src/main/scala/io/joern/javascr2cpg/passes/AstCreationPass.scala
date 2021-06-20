@@ -2,7 +2,7 @@ package io.joern.javascr2cpg.passes
 
 import com.github.javaparser.ast.{CompilationUnit, PackageDeclaration}
 import com.github.javaparser.ast.Node.Parsedness
-import com.github.javaparser.ast.body.{MethodDeclaration, TypeDeclaration}
+import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
 import com.github.javaparser.{JavaParser, ParserConfiguration}
 import com.github.javaparser.symbolsolver.JavaSymbolSolver
 import io.shiftleft.codepropertygraph.Cpg
@@ -15,6 +15,8 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
 import io.shiftleft.codepropertygraph.generated.EdgeTypes
 import io.shiftleft.codepropertygraph.generated.nodes.{
   NewMethod,
+  NewMethodParameterIn,
+  NewMethodReturn,
   NewNamespaceBlock,
   NewNode,
   NewTypeDecl
@@ -74,7 +76,7 @@ class AstCreator(filename: String) {
 
     parserResult.getTypes.asScala.zipWithIndex.foreach { case (typ, i) =>
       stack.push(addTypeDeclNode(typ, i + 1))
-      typ.getMethods.asScala.foreach(m => addMethod(m, typ))
+      typ.getMethods.asScala.zipWithIndex.foreach { case (m, i) => addMethod(m, typ, i + 1) }
       stack.pop()
     }
 
@@ -111,29 +113,63 @@ class AstCreator(filename: String) {
       .order(siblingNum)
       .filename(filename)
     diffGraph.addNode(typeDecl)
-    diffGraph.addEdge(stack.top, typeDecl, EdgeTypes.AST)
+    stack.headOption.foreach(head => diffGraph.addEdge(head, typeDecl, EdgeTypes.AST))
     typeDecl
   }
 
   private def addMethod(
       methodDeclaration: MethodDeclaration,
-      typeDecl: TypeDeclaration[_]
+      typeDecl: TypeDeclaration[_],
+      childNum: Int
   ): Unit = {
     val fullName = methodFullName(typeDecl, methodDeclaration)
+    val code     = methodDeclaration.getDeclarationAsString().trim
     val methodNode = NewMethod()
       .name(methodDeclaration.getNameAsString)
       .fullName(fullName)
+      .code(code)
+      .signature(methodDeclaration.getTypeAsString + paramListSignature(methodDeclaration))
+      .isExternal(false)
+      .order(childNum)
+      .filename(filename)
+      .lineNumber(methodDeclaration.getBegin.map(x => new Integer(x.line)).asScala)
     diffGraph.addNode(methodNode)
-    diffGraph.addEdge(stack.top, methodNode, EdgeTypes.AST)
+    stack.headOption.foreach(head => diffGraph.addEdge(head, methodNode, EdgeTypes.AST))
+
+    val methodReturnNode =
+      NewMethodReturn().order(1).typeFullName(methodDeclaration.getType.resolve().describe())
+    diffGraph.addNode(methodReturnNode)
+    diffGraph.addEdge(methodNode, methodReturnNode, EdgeTypes.AST)
+    stack.push(methodNode)
+    methodDeclaration.getParameters.asScala.zipWithIndex.foreach { case (p, i) =>
+      addParameter(p, i + 2)
+    }
+    stack.pop()
+  }
+
+  private def addParameter(parameter: Parameter, childNum: Int): Unit = {
+    val parameterNode = NewMethodParameterIn()
+      .name(parameter.getName.toString)
+      .typeFullName(parameter.getType.resolve().describe())
+      .order(childNum)
+    stack.headOption.foreach(head => diffGraph.addEdge(head, parameterNode, EdgeTypes.AST))
   }
 
   private def methodFullName(
       typeDecl: TypeDeclaration[_],
       methodDeclaration: MethodDeclaration
   ): String = {
-    typeDecl.getFullyQualifiedName.asScala.getOrElse(
+    val typeName = typeDecl.getFullyQualifiedName.asScala.getOrElse(
       ""
-    ) + ":" + methodDeclaration.getNameAsString + ":" + methodDeclaration.getTypeAsString
+    )
+    typeName + "." + methodDeclaration.getNameAsString + ":" + methodDeclaration.getTypeAsString + paramListSignature(
+      methodDeclaration
+    )
+  }
+
+  private def paramListSignature(methodDeclaration: MethodDeclaration) = {
+    val paramTypes = methodDeclaration.getParameters.asScala.map(_.getType.resolve().describe())
+    "(" + paramTypes.mkString(",") + ")"
   }
 
 }
