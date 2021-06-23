@@ -3,10 +3,13 @@ package io.joern.javascr2cpg
 import io.shiftleft.x2cpg.{X2Cpg, X2CpgConfig}
 import scopt.OParser
 
-final case class Config(inputPaths: Set[String] = Set.empty,
-                        outputPath: String = X2CpgConfig.defaultOutputPath) extends X2CpgConfig[Config] {
+final case class Config(
+    inputPaths: Set[String] = Set.empty,
+    outputPath: String = X2CpgConfig.defaultOutputPath
+) extends X2CpgConfig[Config] {
 
-  override def withAdditionalInputPath(inputPath: String): Config = copy(inputPaths = inputPaths + inputPath)
+  override def withAdditionalInputPath(inputPath: String): Config =
+    copy(inputPaths = inputPaths + inputPath)
   override def withOutputPath(x: String): Config = copy(outputPath = x)
 }
 
