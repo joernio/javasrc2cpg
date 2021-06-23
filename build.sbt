@@ -1,10 +1,11 @@
 name := "javasrc2cpg"
 organization := "io.joern"
+publish / skip := true
 
 version := "0.1"
 scalaVersion := "2.13.4"
 
-val cpgVersion       = "1.3.204"
+val cpgVersion       = "1.3.210"
 val scalatestVersion = "3.1.1"
 
 fork := true
