@@ -25,7 +25,11 @@ object Main extends App {
 
   X2Cpg.parseCommandLine(args, frontendSpecificOptions, Config()) match {
     case Some(config) =>
-      println("Run frontend")
+      val cpg = new JavaSrc2Cpg().createCpg(
+        config.inputPaths,
+        Some(config.outputPath)
+      )
+      cpg.close()
     case None =>
       System.exit(1)
   }

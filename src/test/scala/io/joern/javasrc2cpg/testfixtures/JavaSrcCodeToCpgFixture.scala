@@ -7,10 +7,11 @@ import io.shiftleft.semanticcpg.testfixtures.{CodeToCpgFixture, LanguageFrontend
 import java.io.File
 
 class JavaSrcFrontend extends LanguageFrontend {
+
   override val fileSuffix: String = ".java"
 
   override def execute(sourceCodeFile: File): Cpg = {
-    new JavaSrc2Cpg().createCpg(sourceCodeFile.getAbsolutePath, Set(fileSuffix))
+    new JavaSrc2Cpg().createCpg(Set(sourceCodeFile.getAbsolutePath))
   }
 }
 
