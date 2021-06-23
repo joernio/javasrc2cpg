@@ -223,33 +223,37 @@ class AstCreator(filename: String) {
 
   private def parseExpression(expression: Expression): Unit = {
     expression match {
-      case AnnotationExpr          =>
-      case ArrayAccessExpr         =>
-      case ArrayAccessExpr         =>
-      case ArrayInitializerExpr    =>
-      case AssignExpr              =>
-      case BinaryExpr              =>
-      case CastExpr                =>
-      case ClassExpr               =>
-      case ConditionalExpr         =>
-      case EnclosedExpr            =>
-      case FieldAccessExpr         =>
-      case InstanceOfExpr          =>
-      case LambdaExpr              =>
-      case LiteralExpr             =>
-      case MethodCallExpr          =>
-      case MethodReferenceExpr     =>
-      case NameExpr                =>
-      case ObjectCreationExpr      =>
-      case PatternExpr             =>
-      case SuperExpr               =>
-      case SwitchExpr              =>
-      case ThisExpr                =>
-      case TypeExpr                =>
-      case UnaryExpr               =>
-      case VariableDeclarationExpr =>
+      case x: AnnotationExpr          =>
+      case x: ArrayAccessExpr         =>
+      case x: ArrayAccessExpr         =>
+      case x: ArrayInitializerExpr    =>
+      case x: AssignExpr              =>
+      case x: BinaryExpr              =>
+      case x: CastExpr                =>
+      case x: ClassExpr               =>
+      case x: ConditionalExpr         =>
+      case x: EnclosedExpr            =>
+      case x: FieldAccessExpr         =>
+      case x: InstanceOfExpr          =>
+      case x: LambdaExpr              =>
+      case x: LiteralExpr             =>
+      case x: MethodCallExpr          => addMethodCall(x)
+      case x: MethodReferenceExpr     =>
+      case x: NameExpr                =>
+      case x: ObjectCreationExpr      =>
+      case x: PatternExpr             =>
+      case x: SuperExpr               =>
+      case x: SwitchExpr              =>
+      case x: ThisExpr                =>
+      case x: TypeExpr                =>
+      case x: UnaryExpr               =>
+      case x: VariableDeclarationExpr =>
       case _                       =>
     }
+  }
+
+  private def addMethodCall(call: MethodCallExpr): Unit = {
+
   }
 
   private def addMethodReturnNode(methodDeclaration: MethodDeclaration) = {
