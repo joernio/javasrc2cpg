@@ -3,6 +3,33 @@ package io.joern.javascr2cpg.passes
 import com.github.javaparser.ast.{CompilationUnit, PackageDeclaration}
 import com.github.javaparser.ast.Node.Parsedness
 import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
+import com.github.javaparser.ast.expr.{
+  AnnotationExpr,
+  ArrayAccessExpr,
+  ArrayInitializerExpr,
+  AssignExpr,
+  BinaryExpr,
+  CastExpr,
+  ClassExpr,
+  ConditionalExpr,
+  EnclosedExpr,
+  Expression,
+  FieldAccessExpr,
+  InstanceOfExpr,
+  LambdaExpr,
+  LiteralExpr,
+  MethodCallExpr,
+  MethodReferenceExpr,
+  NameExpr,
+  ObjectCreationExpr,
+  PatternExpr,
+  SuperExpr,
+  SwitchExpr,
+  ThisExpr,
+  TypeExpr,
+  UnaryExpr,
+  VariableDeclarationExpr
+}
 import com.github.javaparser.ast.stmt.{
   AssertStmt,
   BlockStmt,
@@ -167,14 +194,14 @@ class AstCreator(filename: String) {
         case x: ContinueStmt                      =>
         case x: EmptyStmt                         =>
         case x: ExplicitConstructorInvocationStmt =>
-        case x: ExpressionStmt                    =>
+        case x: ExpressionStmt                    => parseExpression(x.getExpression)
         case x: ForEachStmt                       =>
         case x: ForStmt                           =>
         case x: IfStmt                            =>
         case x: LabeledStmt                       =>
         case x: LocalClassDeclarationStmt         =>
         case x: LocalRecordDeclarationStmt        =>
-        case x: ReturnStmt                        =>
+        case x: ReturnStmt                        => addReturnNode(x)
         case x: SwitchStmt                        =>
         case x: SynchronizedStmt                  =>
         case x: ThrowStmt                         =>
@@ -184,6 +211,44 @@ class AstCreator(filename: String) {
         case x: YieldStmt                         =>
         case _                                    =>
       }
+    }
+  }
+
+  private def addReturnNode(ret: ReturnStmt): Unit = {
+    // TODO: Make return node with expression as children
+    if (ret.getExpression.isPresent) {
+      parseExpression(ret.getExpression.get())
+    }
+  }
+
+  private def parseExpression(expression: Expression): Unit = {
+    expression match {
+      case AnnotationExpr          =>
+      case ArrayAccessExpr         =>
+      case ArrayAccessExpr         =>
+      case ArrayInitializerExpr    =>
+      case AssignExpr              =>
+      case BinaryExpr              =>
+      case CastExpr                =>
+      case ClassExpr               =>
+      case ConditionalExpr         =>
+      case EnclosedExpr            =>
+      case FieldAccessExpr         =>
+      case InstanceOfExpr          =>
+      case LambdaExpr              =>
+      case LiteralExpr             =>
+      case MethodCallExpr          =>
+      case MethodReferenceExpr     =>
+      case NameExpr                =>
+      case ObjectCreationExpr      =>
+      case PatternExpr             =>
+      case SuperExpr               =>
+      case SwitchExpr              =>
+      case ThisExpr                =>
+      case TypeExpr                =>
+      case UnaryExpr               =>
+      case VariableDeclarationExpr =>
+      case _                       =>
     }
   }
 
