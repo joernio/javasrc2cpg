@@ -3,6 +3,33 @@ package io.joern.javascr2cpg.passes
 import com.github.javaparser.ast.{CompilationUnit, PackageDeclaration}
 import com.github.javaparser.ast.Node.Parsedness
 import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
+import com.github.javaparser.ast.expr.{
+  AnnotationExpr,
+  ArrayAccessExpr,
+  ArrayInitializerExpr,
+  AssignExpr,
+  BinaryExpr,
+  CastExpr,
+  ClassExpr,
+  ConditionalExpr,
+  EnclosedExpr,
+  Expression,
+  FieldAccessExpr,
+  InstanceOfExpr,
+  LambdaExpr,
+  LiteralExpr,
+  MethodCallExpr,
+  MethodReferenceExpr,
+  NameExpr,
+  ObjectCreationExpr,
+  PatternExpr,
+  SuperExpr,
+  SwitchExpr,
+  ThisExpr,
+  TypeExpr,
+  UnaryExpr,
+  VariableDeclarationExpr
+}
 import com.github.javaparser.ast.stmt.{
   AssertStmt,
   BlockStmt,
@@ -26,6 +53,8 @@ import com.github.javaparser.ast.stmt.{
   WhileStmt,
   YieldStmt
 }
+import com.github.javaparser.resolution.UnsolvedSymbolException
+import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration
 import com.github.javaparser.{JavaParser, ParserConfiguration}
 import com.github.javaparser.symbolsolver.JavaSymbolSolver
 import io.shiftleft.codepropertygraph.Cpg
@@ -37,6 +66,7 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
 }
 import io.shiftleft.codepropertygraph.generated.EdgeTypes
 import io.shiftleft.codepropertygraph.generated.nodes.{
+  NewCall,
   NewMethod,
   NewMethodParameterIn,
   NewMethodReturn,
@@ -48,6 +78,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
 import scala.compat.java8.OptionConverters.RichOptionalGeneric
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
+import scala.util.{Failure, Success, Try}
 
 class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPool: IntervalKeyPool)
     extends ParallelCpgPass[String](cpg, keyPools = Some(keyPool.split(filenames.size))) {
@@ -159,7 +190,8 @@ class AstCreator(filename: String) {
   }
 
   private def addMethodBody(methodDeclaration: MethodDeclaration) = {
-    methodDeclaration.getBody.asScala.foreach { body =>
+    methodDeclaration.getBody.asScala.zipWithIndex.foreach { case (body, i) =>
+      val order = i + 1
       body.getStatements.asScala.foreach {
         case x: AssertStmt                        =>
         case x: BlockStmt                         =>
@@ -167,14 +199,14 @@ class AstCreator(filename: String) {
         case x: ContinueStmt                      =>
         case x: EmptyStmt                         =>
         case x: ExplicitConstructorInvocationStmt =>
-        case x: ExpressionStmt                    =>
+        case x: ExpressionStmt                    => parseExpression(x.getExpression, order)
         case x: ForEachStmt                       =>
         case x: ForStmt                           =>
         case x: IfStmt                            =>
         case x: LabeledStmt                       =>
         case x: LocalClassDeclarationStmt         =>
         case x: LocalRecordDeclarationStmt        =>
-        case x: ReturnStmt                        =>
+        case x: ReturnStmt                        => addReturnNode(x, order)
         case x: SwitchStmt                        =>
         case x: SynchronizedStmt                  =>
         case x: ThrowStmt                         =>
@@ -185,6 +217,69 @@ class AstCreator(filename: String) {
         case _                                    =>
       }
     }
+  }
+
+  private def addReturnNode(ret: ReturnStmt, order: Int = 1): Unit = {
+    // TODO: Make return node with expression as children
+    if (ret.getExpression.isPresent) {
+      parseExpression(ret.getExpression.get(), order + 1)
+    }
+  }
+
+  private def parseExpression(expression: Expression, order: Int = 1): Unit = {
+    expression match {
+      case x: AnnotationExpr          =>
+      case x: ArrayAccessExpr         =>
+      case x: ArrayAccessExpr         =>
+      case x: ArrayInitializerExpr    =>
+      case x: AssignExpr              =>
+      case x: BinaryExpr              =>
+      case x: CastExpr                =>
+      case x: ClassExpr               =>
+      case x: ConditionalExpr         =>
+      case x: EnclosedExpr            =>
+      case x: FieldAccessExpr         =>
+      case x: InstanceOfExpr          =>
+      case x: LambdaExpr              =>
+      case x: LiteralExpr             =>
+      case x: MethodCallExpr          => addMethodCall(x, order)
+      case x: MethodReferenceExpr     =>
+      case x: NameExpr                =>
+      case x: ObjectCreationExpr      =>
+      case x: PatternExpr             =>
+      case x: SuperExpr               =>
+      case x: SwitchExpr              =>
+      case x: ThisExpr                =>
+      case x: TypeExpr                =>
+      case x: UnaryExpr               =>
+      case x: VariableDeclarationExpr =>
+      case _                          =>
+    }
+  }
+
+  private def addMethodCall(call: MethodCallExpr, order: Int = 1): NewCall = {
+    val callNode = NewCall()
+      .name(call.getNameAsString)
+      .code(s"${call.getNameAsString}(${call.getArguments.asScala.mkString(", ")})")
+      .order(order)
+      .argumentIndex(order)
+    Try(call.resolve()) match {
+      case Success(x) =>
+        val signature = s"${x.getReturnType.describe()}(${(for (i <- 0 until x.getNumberOfParams)
+          yield x.getParam(i).getType.describe()).mkString(",")})"
+        callNode.methodFullName(s"${x.getQualifiedName}:$signature")
+        callNode.signature(signature)
+      // TODO: Generate AST children here
+      case Failure(_) =>
+    }
+    if (call.getName.getBegin.isPresent) {
+      val begin = call.getName.getBegin
+      callNode
+        .lineNumber(Option(begin.get().line))
+        .columnNumber(Option(begin.get().column))
+    }
+    diffGraph.addNode(callNode)
+    callNode
   }
 
   private def addMethodReturnNode(methodDeclaration: MethodDeclaration) = {
