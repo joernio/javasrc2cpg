@@ -272,7 +272,12 @@ class AstCreator(filename: String) {
       // TODO: Generate AST children here
       case Failure(_) =>
     }
-    // TODO: Line numbers
+    if (call.getName.getBegin.isPresent) {
+      val begin = call.getName.getBegin
+      callNode
+        .lineNumber(Option(begin.get().line))
+        .columnNumber(Option(begin.get().column))
+    }
     diffGraph.addNode(callNode)
     callNode
   }

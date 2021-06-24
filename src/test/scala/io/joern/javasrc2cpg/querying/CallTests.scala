@@ -31,7 +31,7 @@ class CallTests extends JavaSrcCodeToCpgFixture {
     x.methodFullName shouldBe "Foo.add:int(int,int)"
     x.signature shouldBe "int(int,int)"
     x.argumentIndex shouldBe 2
-//    x.lineNumber shouldBe Some(8)
+    x.lineNumber shouldBe Some(8)
   }
 
 //  "should allow traversing from call to arguments" in {
