@@ -1,6 +1,6 @@
 package io.joern.javascr2cpg.passes
 
-import com.github.javaparser.ast.{CompilationUnit, PackageDeclaration}
+import com.github.javaparser.ast.{CompilationUnit, Node, PackageDeclaration}
 import com.github.javaparser.ast.Node.Parsedness
 import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
 import com.github.javaparser.ast.expr.{
@@ -45,6 +45,7 @@ import com.github.javaparser.ast.stmt.{
   LocalClassDeclarationStmt,
   LocalRecordDeclarationStmt,
   ReturnStmt,
+  Statement,
   SwitchStmt,
   SynchronizedStmt,
   ThrowStmt,
@@ -66,6 +67,7 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
 }
 import io.shiftleft.codepropertygraph.generated.EdgeTypes
 import io.shiftleft.codepropertygraph.generated.nodes.{
+  NewBlock,
   NewCall,
   NewMethod,
   NewMethodParameterIn,
@@ -120,6 +122,14 @@ class AstCreator(filename: String) {
 
   val stack: mutable.Stack[NewNode] = mutable.Stack()
   val diffGraph: DiffGraph.Builder  = DiffGraph.newBuilder
+
+  private def line(node: Node): Option[Integer] = {
+    node.getBegin.map(x => Integer.valueOf(x.line)).asScala
+  }
+
+  private def column(node: Node): Option[Integer] = {
+    node.getBegin.map(x => Integer.valueOf(x.column)).asScala
+  }
 
   def createAst(parserResult: CompilationUnit): Iterator[DiffGraph] = {
 
@@ -192,41 +202,50 @@ class AstCreator(filename: String) {
   private def addMethodBody(methodDeclaration: MethodDeclaration) = {
     methodDeclaration.getBody.asScala.zipWithIndex.foreach { case (body, i) =>
       val order = i + 1
-      body.getStatements.asScala.foreach {
-        case x: AssertStmt                        =>
-        case x: BlockStmt                         =>
-        case x: BreakStmt                         =>
-        case x: ContinueStmt                      =>
-        case x: EmptyStmt                         =>
-        case x: ExplicitConstructorInvocationStmt =>
-        case x: ExpressionStmt                    => parseExpression(x.getExpression, order)
-        case x: ForEachStmt                       =>
-        case x: ForStmt                           =>
-        case x: IfStmt                            =>
-        case x: LabeledStmt                       =>
-        case x: LocalClassDeclarationStmt         =>
-        case x: LocalRecordDeclarationStmt        =>
-        case x: ReturnStmt                        => addReturnNode(x, order)
-        case x: SwitchStmt                        =>
-        case x: SynchronizedStmt                  =>
-        case x: ThrowStmt                         =>
-        case x: TryStmt                           =>
-        case x: UnparsableStmt                    =>
-        case x: WhileStmt                         =>
-        case x: YieldStmt                         =>
-        case _                                    =>
-      }
+      body.getStatements.asScala.foreach { statement => addStatement(statement, order) }
     }
+  }
+
+  private def addStatement(statement: Statement, order: Int): Unit = {
+    statement match {
+      case x: AssertStmt                        =>
+      case x: BlockStmt                         => addBlockStatement(x, order)
+      case x: BreakStmt                         =>
+      case x: ContinueStmt                      =>
+      case x: EmptyStmt                         =>
+      case x: ExplicitConstructorInvocationStmt =>
+      case x: ExpressionStmt                    => addExpression(x.getExpression, order)
+      case x: ForEachStmt                       =>
+      case x: ForStmt                           =>
+      case x: IfStmt                            =>
+      case x: LabeledStmt                       =>
+      case x: LocalClassDeclarationStmt         =>
+      case x: LocalRecordDeclarationStmt        =>
+      case x: ReturnStmt                        => addReturnNode(x, order)
+      case x: SwitchStmt                        =>
+      case x: SynchronizedStmt                  =>
+      case x: ThrowStmt                         =>
+      case x: TryStmt                           =>
+      case x: UnparsableStmt                    =>
+      case x: WhileStmt                         =>
+      case x: YieldStmt                         =>
+      case _                                    =>
+    }
+  }
+
+  private def addBlockStatement(stmt: BlockStmt, order: Int = 1): Unit = {
+    val block = NewBlock(order = order)
+    diffGraph.addNode(block)
   }
 
   private def addReturnNode(ret: ReturnStmt, order: Int = 1): Unit = {
     // TODO: Make return node with expression as children
     if (ret.getExpression.isPresent) {
-      parseExpression(ret.getExpression.get(), order + 1)
+      addExpression(ret.getExpression.get(), order + 1)
     }
   }
 
-  private def parseExpression(expression: Expression, order: Int = 1): Unit = {
+  private def addExpression(expression: Expression, order: Int = 1): Unit = {
     expression match {
       case x: AnnotationExpr          =>
       case x: ArrayAccessExpr         =>
@@ -273,10 +292,9 @@ class AstCreator(filename: String) {
       case Failure(_) =>
     }
     if (call.getName.getBegin.isPresent) {
-      val begin = call.getName.getBegin
       callNode
-        .lineNumber(Option(begin.get().line))
-        .columnNumber(Option(begin.get().column))
+        .lineNumber(line(call.getName))
+        .columnNumber(column(call.getName))
     }
     diffGraph.addNode(callNode)
     callNode
@@ -288,7 +306,7 @@ class AstCreator(filename: String) {
         .order(methodDeclaration.getParameters.size + 2)
         .typeFullName(methodDeclaration.getType.resolve().describe())
         .code(methodDeclaration.getTypeAsString)
-        .lineNumber(methodDeclaration.getType.getBegin.map(x => new Integer(x.line)).asScala)
+        .lineNumber(line(methodDeclaration.getType))
     diffGraph.addNode(methodReturnNode)
     methodReturnNode
   }
@@ -308,7 +326,7 @@ class AstCreator(filename: String) {
       .isExternal(false)
       .order(childNum)
       .filename(filename)
-      .lineNumber(methodDeclaration.getBegin.map(x => new Integer(x.line)).asScala)
+      .lineNumber(line(methodDeclaration))
     diffGraph.addNode(methodNode)
     stack.headOption.foreach(head => diffGraph.addEdge(head, methodNode, EdgeTypes.AST))
     methodNode
@@ -320,8 +338,8 @@ class AstCreator(filename: String) {
       .code(parameter.toString)
       .typeFullName(parameter.getType.resolve().describe())
       .order(childNum)
-      .lineNumber(parameter.getBegin.map(x => new Integer(x.line)).asScala)
-      .columnNumber(parameter.getBegin.map(x => new Integer(x.column)).asScala)
+      .lineNumber(line(parameter))
+      .columnNumber(column(parameter))
     stack.headOption.foreach(head => diffGraph.addEdge(head, parameterNode, EdgeTypes.AST))
   }
 
