@@ -9,24 +9,29 @@ import io.shiftleft.semanticcpg.passes.namespacecreator.NamespaceCreator
 import io.shiftleft.x2cpg.SourceFiles
 import io.shiftleft.x2cpg.X2Cpg.newEmptyCpg
 
+object JavaSrc2Cpg {
+  val language = "JAVAPARSER"
+}
+
 class JavaSrc2Cpg {
 
+  import JavaSrc2Cpg._
+
   def createCpg(
-      sourceCodePaths: Set[String],
+      sourceCodePath: String,
       outputPath: Option[String] = None
   ): Cpg = {
-    val sourceFileExtensions = Set(".java")
-    val sourceFileNames      = SourceFiles.determine(sourceCodePaths, sourceFileExtensions)
-    val cpg                  = newEmptyCpg(outputPath)
-    val metaDataKeyPool      = new IntervalKeyPool(1, 100)
-    val methodKeyPool        = new IntervalKeyPool(1000100, Long.MaxValue)
-    val metaDataPass         = new MetaDataPass(cpg, "JAVAPARSER", Some(metaDataKeyPool))
-    metaDataPass.createAndApply()
 
-    sourceCodePaths.toList.sorted.foreach { sourceCodePath =>
-      val astCreator = new AstCreationPass(sourceCodePath, sourceFileNames, cpg, methodKeyPool)
-      astCreator.createAndApply()
-    }
+    val metaDataKeyPool = new IntervalKeyPool(1, 100)
+    val methodKeyPool   = new IntervalKeyPool(first = 1000100, last = Long.MaxValue)
+
+    val cpg          = newEmptyCpg(outputPath)
+    val metaDataPass = new MetaDataPass(cpg, language, Some(metaDataKeyPool))
+    metaDataPass.createAndApply()
+    val sourceFileExtensions = Set(".java")
+    val sourceFileNames      = SourceFiles.determine(Set(sourceCodePath), sourceFileExtensions)
+    val astCreator           = new AstCreationPass(sourceCodePath, sourceFileNames, cpg, methodKeyPool)
+    astCreator.createAndApply()
     new NamespaceCreator(cpg).createAndApply()
     new FileCreationPass(cpg).createAndApply()
     cpg

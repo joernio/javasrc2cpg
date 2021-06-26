@@ -13,8 +13,6 @@ class ControlStructureTests extends JavaSrcCodeToCpgFixture {
       |
       |void foo(int x, int y) {
       | try {
-      |    goto foo;
-      |    foo:
       | } catch(exc_t exc) {
       |   // ...
       | }
