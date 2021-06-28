@@ -15,9 +15,8 @@ class NamespaceBlockTests extends JavaSrcCodeToCpgFixture {
       |}
       |""".stripMargin
 
-  "should contain two namespace blocks in total (<global>, foo.bar)" in {
+  "should contain two namespace blocks in total (<default>, foo.bar)" in {
     cpg.namespaceBlock.size shouldBe 2
-    // There is no global namespace block in Java
   }
 
   "should contain correct namespace block for known file" in {
