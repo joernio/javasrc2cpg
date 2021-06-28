@@ -1,6 +1,6 @@
 package io.joern.javascr2cpg.passes
 
-import com.github.javaparser.ast.{CompilationUnit, Node, NodeList, PackageDeclaration}
+import com.github.javaparser.ast.{CompilationUnit, Node, PackageDeclaration}
 import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
 import com.github.javaparser.ast.expr.{
   AnnotationExpr,
@@ -65,7 +65,6 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewMethodParameterIn,
   NewMethodReturn,
   NewNamespaceBlock,
-  NewNamespaceBlockBuilder,
   NewNode,
   NewTypeDecl
 }
@@ -84,7 +83,11 @@ object Ast {
   def apply(): Ast              = new Ast(List())
 }
 
-case class Ast(nodes: List[NewNode], edges: List[AstEdge] = List()) {
+case class Ast(
+    nodes: List[NewNode],
+    edges: List[AstEdge] = List(),
+    conditionEdges: List[AstEdge] = List()
+) {
 
   def root: Option[NewNode]          = nodes.headOption
   def rightMostLeaf: Option[NewNode] = nodes.lastOption
@@ -97,7 +100,8 @@ case class Ast(nodes: List[NewNode], edges: List[AstEdge] = List()) {
       nodes ++ other.nodes,
       edges = edges ++ other.edges ++ root.toList.flatMap(r =>
         other.root.toList.map { rc => AstEdge(r, rc) }
-      )
+      ),
+      conditionEdges = conditionEdges ++ other.conditionEdges
     )
   }
 
@@ -111,6 +115,10 @@ case class Ast(nodes: List[NewNode], edges: List[AstEdge] = List()) {
       case None =>
         this
     }
+  }
+
+  def withConditionEdge(src: NewNode, dst: NewNode): Ast = {
+    this.copy(conditionEdges = conditionEdges ++ List(AstEdge(src, dst)))
   }
 
 }
@@ -135,6 +143,9 @@ class AstCreator(filename: String) {
     }
     ast.edges.foreach { edge =>
       diffGraph.addEdge(edge.src, edge.dst, EdgeTypes.AST)
+    }
+    ast.conditionEdges.foreach { edge =>
+      diffGraph.addEdge(edge.src, edge.dst, EdgeTypes.CONDITION)
     }
   }
 
@@ -239,40 +250,54 @@ class AstCreator(filename: String) {
     }
   }
 
-  private def astForStatement(statement: Statement, order: Int): Ast = {
+  def astsForLabeledStatement(stmt: LabeledStmt, order: Int): Seq[Ast] = {
+    val jumpTargetAst = Ast(NewJumpTarget(name = stmt.getLabel.toString, order = order))
+    val stmtAst       = astsForStatement(stmt.getStatement, order = order + 1)
+    Seq(jumpTargetAst) ++ stmtAst
+  }
+
+  private def astsForStatement(statement: Statement, order: Int): Seq[Ast] = {
     statement match {
-      case x: AssertStmt                        => Ast()
-      case x: BlockStmt                         => astForBlockStatement(x, order)
-      case x: BreakStmt                         => astForBreakStatement(x, order)
-      case x: ContinueStmt                      => astForContinueStatement(x, order)
-      case x: EmptyStmt                         => Ast()
-      case x: ExplicitConstructorInvocationStmt => Ast()
-      case x: ExpressionStmt                    => astForExpression(x.getExpression, order)
-      case x: ForEachStmt                       => Ast()
-      case x: ForStmt                           => astForFor(x, order)
-      case x: IfStmt                            => astForIf(x, order)
-      case x: LabeledStmt                       => Ast()
-      case x: LocalClassDeclarationStmt         => Ast()
-      case x: LocalRecordDeclarationStmt        => Ast()
-      case x: ReturnStmt                        => astForReturnNode(x, order)
-      case x: SwitchStmt                        => astForSwitchStatement(x, order)
-      case x: SynchronizedStmt                  => Ast()
-      case x: ThrowStmt                         => Ast()
-      case x: TryStmt                           => Ast()
-      case x: UnparsableStmt                    => Ast()
-      case x: WhileStmt                         => Ast()
-      case x: YieldStmt                         => Ast()
-      case _                                    => Ast()
+      case x: AssertStmt                        => Seq() // TODO: translate to Call
+      case x: BlockStmt                         => Seq(astForBlockStatement(x, order))
+      case x: BreakStmt                         => Seq(astForBreakStatement(x, order))
+      case x: ContinueStmt                      => Seq(astForContinueStatement(x, order))
+      case x: EmptyStmt                         => Seq()
+      case x: ExplicitConstructorInvocationStmt => Seq() // TODO: translate to Call
+      case x: ExpressionStmt                    => Seq(astForExpression(x.getExpression, order))
+      case x: ForEachStmt                       => Seq() // TODO: translate to For
+      case x: ForStmt                           => Seq(astForFor(x, order))
+      case x: IfStmt                            => Seq(astForIf(x, order))
+      case x: LabeledStmt                       => astsForLabeledStatement(x, order)
+      case x: LocalClassDeclarationStmt         => Seq()
+      case x: LocalRecordDeclarationStmt        => Seq()
+      case x: ReturnStmt                        => Seq(astForReturnNode(x, order))
+      case x: SwitchStmt                        => Seq(astForSwitchStatement(x, order))
+      case x: SynchronizedStmt                  => Seq()
+      case x: ThrowStmt                         => Seq()
+      case x: TryStmt                           => Seq()
+      case x: UnparsableStmt                    => Seq()
+      case x: WhileStmt                         => Seq()
+      case x: YieldStmt                         => Seq()
+      case _                                    => Seq()
     }
   }
 
   def astForIf(stmt: IfStmt, order: Int): Ast = {
     val ifNode       = NewControlStructure(controlStructureType = ControlStructureTypes.IF, order = order)
     val conditionAst = astForExpression(stmt.getCondition, order = 0)
-    val stmtAst      = astForStatement(stmt.getThenStmt, order = 1)
-    Ast(ifNode)
+    val stmtAsts     = astsForStatement(stmt.getThenStmt, order = 1)
+
+    val ast = Ast(ifNode)
       .withChild(conditionAst)
-      .withChild(stmtAst)
+      .withChildren(stmtAsts)
+
+    conditionAst.root match {
+      case Some(r) =>
+        ast.withConditionEdge(ifNode, r)
+      case None =>
+        ast
+    }
   }
 
   def astForBreakStatement(stmt: BreakStmt, order: Int): Ast = {
@@ -310,17 +335,21 @@ class AstCreator(filename: String) {
       astForExpression(s, o + initAsts.size + compareAst.size)
     }
     val stmtAst =
-      astForStatement(stmt.getBody, initAsts.size + compareAst.size + updateAsts.size + 1)
+      astsForStatement(stmt.getBody, initAsts.size + compareAst.size + updateAsts.size + 1)
     Ast(forNode)
       .withChildren(initAsts)
       .withChildren(compareAst.toList)
       .withChildren(updateAsts)
-      .withChild(stmtAst)
+      .withChildren(stmtAst)
   }
 
   def astForSwitchStatement(stmt: SwitchStmt, order: Int): Ast = {
     val switchNode =
-      NewControlStructure(controlStructureType = ControlStructureTypes.SWITCH, order = order)
+      NewControlStructure(
+        controlStructureType = ControlStructureTypes.SWITCH,
+        order = order,
+        code = s"switch(${stmt.getSelector.toString})"
+      )
     val entryAsts = withOrder(stmt.getEntries) { (e, order) => astForSwitchEntry(e, order) }.flatten
     Ast(switchNode).withChildren(entryAsts)
   }
@@ -330,8 +359,8 @@ class AstCreator(filename: String) {
       NewJumpTarget(name = x.toString, order = o + order)
     }
     val statementAsts = withOrder(entry.getStatements) { (s, o) =>
-      astForStatement(s, order + o + labelNodes.size)
-    }
+      astsForStatement(s, order + o + labelNodes.size)
+    }.flatten
     labelNodes.map(x => Ast(x)) ++ statementAsts
   }
 
@@ -339,8 +368,8 @@ class AstCreator(filename: String) {
     val block = NewBlock(order = order, lineNumber = line(stmt), columnNumber = column(stmt))
     Ast(block).withChildren(
       withOrder(stmt.getStatements) { (x, order) =>
-        astForStatement(x, order)
-      }
+        astsForStatement(x, order)
+      }.flatten
     )
   }
 
