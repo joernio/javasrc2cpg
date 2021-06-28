@@ -54,7 +54,7 @@ import com.github.javaparser.ast.stmt.{
   WhileStmt,
   YieldStmt
 }
-import io.shiftleft.codepropertygraph.generated.{ControlStructureTypes, EdgeTypes}
+import io.shiftleft.codepropertygraph.generated.{ControlStructureTypes, EdgeTypes, Operators}
 import io.shiftleft.codepropertygraph.generated.nodes.{
   NewBlock,
   NewCall,
@@ -277,7 +277,7 @@ class AstCreator(filename: String) {
       case x: ThrowStmt                         => Seq()
       case x: TryStmt                           => Seq()
       case x: UnparsableStmt                    => Seq()
-      case x: WhileStmt                         => Seq()
+      case x: WhileStmt                         => Seq(astForWhile(x, order))
       case x: YieldStmt                         => Seq()
       case _                                    => Seq()
     }
@@ -295,6 +295,22 @@ class AstCreator(filename: String) {
     conditionAst.root match {
       case Some(r) =>
         ast.withConditionEdge(ifNode, r)
+      case None =>
+        ast
+    }
+  }
+
+  def astForWhile(stmt: WhileStmt, order: Int): Ast = {
+    val whileNode =
+      NewControlStructure(controlStructureType = ControlStructureTypes.WHILE, order = order)
+    val conditionAst = astForExpression(stmt.getCondition, order = 0)
+    val stmtAsts     = astsForStatement(stmt.getBody, order = 1)
+    val ast = Ast(whileNode)
+      .withChild(conditionAst)
+      .withChildren(stmtAsts)
+    conditionAst.root match {
+      case Some(r) =>
+        ast.withConditionEdge(whileNode, r)
       case None =>
         ast
     }
@@ -382,13 +398,42 @@ class AstCreator(filename: String) {
     }
   }
 
+  def astForBinaryExpr(stmt: BinaryExpr, order: Int): Ast = {
+    val operatorName = stmt.getOperator match {
+      case BinaryExpr.Operator.OR                   => Operators.logicalOr
+      case BinaryExpr.Operator.AND                  => Operators.logicalAnd
+      case BinaryExpr.Operator.BINARY_OR            => Operators.or
+      case BinaryExpr.Operator.BINARY_OR            => Operators.and
+      case BinaryExpr.Operator.DIVIDE               => Operators.division
+      case BinaryExpr.Operator.EQUALS               => Operators.equals
+      case BinaryExpr.Operator.GREATER              => Operators.greaterThan
+      case BinaryExpr.Operator.GREATER_EQUALS       => Operators.greaterEqualsThan
+      case BinaryExpr.Operator.LESS                 => Operators.lessThan
+      case BinaryExpr.Operator.LESS_EQUALS          => Operators.lessEqualsThan
+      case BinaryExpr.Operator.LEFT_SHIFT           => Operators.shiftLeft
+      case BinaryExpr.Operator.SIGNED_RIGHT_SHIFT   => Operators.logicalShiftRight
+      case BinaryExpr.Operator.UNSIGNED_RIGHT_SHIFT => Operators.arithmeticShiftRight
+      case BinaryExpr.Operator.XOR                  => Operators.xor
+      case BinaryExpr.Operator.NOT_EQUALS           => Operators.notEquals
+      case BinaryExpr.Operator.PLUS                 => Operators.plus
+      case BinaryExpr.Operator.MINUS                => Operators.minus
+      case BinaryExpr.Operator.MULTIPLY             => Operators.multiplication
+      case BinaryExpr.Operator.REMAINDER            => Operators.modulo
+      case _                                        => ""
+    }
+
+    val callNode = NewCall(name = operatorName, methodFullName = operatorName, code = stmt.toString)
+    // TODO arguments
+    Ast(callNode)
+  }
+
   private def astForExpression(expression: Expression, order: Int): Ast = {
     expression match {
       case x: AnnotationExpr          => Ast()
       case x: ArrayAccessExpr         => Ast()
       case x: ArrayInitializerExpr    => Ast()
       case x: AssignExpr              => Ast()
-      case x: BinaryExpr              => Ast()
+      case x: BinaryExpr              => astForBinaryExpr(x, order)
       case x: CastExpr                => Ast()
       case x: ClassExpr               => Ast()
       case x: ConditionalExpr         => Ast()
