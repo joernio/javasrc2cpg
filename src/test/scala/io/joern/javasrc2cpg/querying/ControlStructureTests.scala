@@ -4,7 +4,6 @@ import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
 import io.shiftleft.semanticcpg.language._
 import org.scalatest.Ignore
 
-@Ignore
 class ControlStructureTests extends JavaSrcCodeToCpgFixture {
 
   override val code =
@@ -64,10 +63,6 @@ class ControlStructureTests extends JavaSrcCodeToCpgFixture {
 
   "should identify `do` block" in {
     cpg.method.name("foo").doBlock.condition.code.l shouldBe List("i < 11")
-  }
-
-  "should identify `goto`" in {
-    cpg.method.name("foo").goto.code.l shouldBe List("goto foo;")
   }
 
   "should identify `break`" in {

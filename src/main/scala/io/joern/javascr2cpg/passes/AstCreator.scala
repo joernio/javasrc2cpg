@@ -34,6 +34,7 @@ import com.github.javaparser.ast.stmt.{
   BlockStmt,
   BreakStmt,
   ContinueStmt,
+  DoStmt,
   EmptyStmt,
   ExplicitConstructorInvocationStmt,
   ExpressionStmt,
@@ -256,12 +257,22 @@ class AstCreator(filename: String) {
     Seq(jumpTargetAst) ++ stmtAst
   }
 
+  def astForTry(stmt: TryStmt, order: Int): Ast = {
+    val tryNode = NewControlStructure(
+      controlStructureType = ControlStructureTypes.TRY,
+      code = "try",
+      order = order
+    )
+    Ast(tryNode)
+  }
+
   private def astsForStatement(statement: Statement, order: Int): Seq[Ast] = {
     statement match {
       case x: AssertStmt                        => Seq() // TODO: translate to Call
       case x: BlockStmt                         => Seq(astForBlockStatement(x, order))
       case x: BreakStmt                         => Seq(astForBreakStatement(x, order))
       case x: ContinueStmt                      => Seq(astForContinueStatement(x, order))
+      case x: DoStmt                            => Seq(astForDo(x, order))
       case x: EmptyStmt                         => Seq()
       case x: ExplicitConstructorInvocationStmt => Seq() // TODO: translate to Call
       case x: ExpressionStmt                    => Seq(astForExpression(x.getExpression, order))
@@ -275,7 +286,7 @@ class AstCreator(filename: String) {
       case x: SwitchStmt                        => Seq(astForSwitchStatement(x, order))
       case x: SynchronizedStmt                  => Seq()
       case x: ThrowStmt                         => Seq()
-      case x: TryStmt                           => Seq()
+      case x: TryStmt                           => Seq(astForTry(x, order))
       case x: UnparsableStmt                    => Seq()
       case x: WhileStmt                         => Seq(astForWhile(x, order))
       case x: YieldStmt                         => Seq()
@@ -311,6 +322,22 @@ class AstCreator(filename: String) {
     conditionAst.root match {
       case Some(r) =>
         ast.withConditionEdge(whileNode, r)
+      case None =>
+        ast
+    }
+  }
+
+  def astForDo(stmt: DoStmt, order: Int): Ast = {
+    val doNode =
+      NewControlStructure(controlStructureType = ControlStructureTypes.DO, order = order)
+    val conditionAst = astForExpression(stmt.getCondition, order = 0)
+    val stmtAsts     = astsForStatement(stmt.getBody, order = 1)
+    val ast = Ast(doNode)
+      .withChild(conditionAst)
+      .withChildren(stmtAsts)
+    conditionAst.root match {
+      case Some(r) =>
+        ast.withConditionEdge(doNode, r)
       case None =>
         ast
     }
@@ -352,11 +379,18 @@ class AstCreator(filename: String) {
     }
     val stmtAst =
       astsForStatement(stmt.getBody, initAsts.size + compareAst.size + updateAsts.size + 1)
-    Ast(forNode)
+
+    val ast = Ast(forNode)
       .withChildren(initAsts)
       .withChildren(compareAst.toList)
       .withChildren(updateAsts)
       .withChildren(stmtAst)
+
+    compareAst.flatMap(_.root) match {
+      case Some(c) =>
+        ast.withConditionEdge(forNode, c)
+      case None => ast
+    }
   }
 
   def astForSwitchStatement(stmt: SwitchStmt, order: Int): Ast = {
@@ -403,7 +437,7 @@ class AstCreator(filename: String) {
       case BinaryExpr.Operator.OR                   => Operators.logicalOr
       case BinaryExpr.Operator.AND                  => Operators.logicalAnd
       case BinaryExpr.Operator.BINARY_OR            => Operators.or
-      case BinaryExpr.Operator.BINARY_OR            => Operators.and
+      case BinaryExpr.Operator.BINARY_AND           => Operators.and
       case BinaryExpr.Operator.DIVIDE               => Operators.division
       case BinaryExpr.Operator.EQUALS               => Operators.equals
       case BinaryExpr.Operator.GREATER              => Operators.greaterThan
@@ -423,8 +457,9 @@ class AstCreator(filename: String) {
     }
 
     val callNode = NewCall(name = operatorName, methodFullName = operatorName, code = stmt.toString)
-    // TODO arguments
     Ast(callNode)
+      .withChild(astForExpression(stmt.getLeft, 0))
+      .withChild(astForExpression(stmt.getRight, 1))
   }
 
   private def astForExpression(expression: Expression, order: Int): Ast = {
