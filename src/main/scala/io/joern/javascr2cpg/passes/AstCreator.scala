@@ -244,13 +244,13 @@ class AstCreator(filename: String) {
       case x: AssertStmt                        => Ast()
       case x: BlockStmt                         => astForBlockStatement(x, order)
       case x: BreakStmt                         => astForBreakStatement(x, order)
-      case x: ContinueStmt                      => Ast()
+      case x: ContinueStmt                      => astForContinueStatement(x, order)
       case x: EmptyStmt                         => Ast()
       case x: ExplicitConstructorInvocationStmt => Ast()
-      case x: ExpressionStmt                    => astForExpressionStmt(x.getExpression, order)
+      case x: ExpressionStmt                    => astForExpression(x.getExpression, order)
       case x: ForEachStmt                       => Ast()
-      case x: ForStmt                           => Ast()
-      case x: IfStmt                            => Ast()
+      case x: ForStmt                           => astForFor(x, order)
+      case x: IfStmt                            => astForIf(x, order)
       case x: LabeledStmt                       => Ast()
       case x: LocalClassDeclarationStmt         => Ast()
       case x: LocalRecordDeclarationStmt        => Ast()
@@ -266,6 +266,15 @@ class AstCreator(filename: String) {
     }
   }
 
+  def astForIf(stmt: IfStmt, order: Int): Ast = {
+    val ifNode       = NewControlStructure(controlStructureType = ControlStructureTypes.IF, order = order)
+    val conditionAst = astForExpression(stmt.getCondition, order = 0)
+    val stmtAst      = astForStatement(stmt.getThenStmt, order = 1)
+    Ast(ifNode)
+      .withChild(conditionAst)
+      .withChild(stmtAst)
+  }
+
   def astForBreakStatement(stmt: BreakStmt, order: Int): Ast = {
     val node = NewControlStructure(
       controlStructureType = ControlStructureTypes.BREAK,
@@ -275,6 +284,38 @@ class AstCreator(filename: String) {
       order = order
     )
     Ast(node)
+  }
+
+  def astForContinueStatement(stmt: ContinueStmt, order: Int): Ast = {
+    val node = NewControlStructure(
+      controlStructureType = ControlStructureTypes.CONTINUE,
+      lineNumber = line(stmt),
+      columnNumber = column(stmt),
+      code = stmt.toString,
+      order = order
+    )
+    Ast(node)
+  }
+
+  def astForFor(stmt: ForStmt, order: Int): Ast = {
+    val forNode =
+      NewControlStructure(controlStructureType = ControlStructureTypes.FOR, order = order)
+    val initAsts = withOrder(stmt.getInitialization) { (s, o) =>
+      astForExpression(s, o)
+    }
+    val compareAst = stmt.getCompare.asScala.toList
+      .map(x => astForExpression(x, order + initAsts.size + 1))
+      .headOption
+    val updateAsts = withOrder(stmt.getUpdate) { (s, o) =>
+      astForExpression(s, o + initAsts.size + compareAst.size)
+    }
+    val stmtAst =
+      astForStatement(stmt.getBody, initAsts.size + compareAst.size + updateAsts.size + 1)
+    Ast(forNode)
+      .withChildren(initAsts)
+      .withChildren(compareAst.toList)
+      .withChildren(updateAsts)
+      .withChild(stmtAst)
   }
 
   def astForSwitchStatement(stmt: SwitchStmt, order: Int): Ast = {
@@ -306,13 +347,13 @@ class AstCreator(filename: String) {
   private def astForReturnNode(ret: ReturnStmt, order: Int): Ast = {
     // TODO: Make return node with expression as children
     if (ret.getExpression.isPresent) {
-      astForExpressionStmt(ret.getExpression.get(), order + 1)
+      astForExpression(ret.getExpression.get(), order + 1)
     } else {
       Ast()
     }
   }
 
-  private def astForExpressionStmt(expression: Expression, order: Int = 1): Ast = {
+  private def astForExpression(expression: Expression, order: Int): Ast = {
     expression match {
       case x: AnnotationExpr          => Ast()
       case x: ArrayAccessExpr         => Ast()

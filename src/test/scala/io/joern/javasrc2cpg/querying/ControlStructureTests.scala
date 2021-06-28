@@ -43,39 +43,39 @@ class ControlStructureTests extends JavaSrcCodeToCpgFixture {
       |""".stripMargin
 
   "should identify `try` block" in {
-    cpg.method("foo").tryBlock.code.l shouldBe List("try")
+    cpg.method.name("foo").tryBlock.code.l shouldBe List("try")
   }
 
   "should identify `if` block" in {
-    cpg.method("foo").ifBlock.condition.code.l shouldBe List("x > y")
+    cpg.method.name("foo").ifBlock.condition.code.l shouldBe List("x > y")
   }
 
   "should identify `switch` block" in {
-    cpg.method("foo").switchBlock.code.l shouldBe List("switch(y)")
+    cpg.method.name("foo").switchBlock.code.l shouldBe List("switch(y)")
   }
 
   "should identify `for` block" in {
-    cpg.method("foo").forBlock.condition.code.l shouldBe List("i < 10")
+    cpg.method.name("foo").forBlock.condition.code.l shouldBe List("i < 10")
   }
 
   "should identify `while` block" in {
-    cpg.method("foo").whileBlock.condition.code.l shouldBe List("y++ < x")
+    cpg.method.name("foo").whileBlock.condition.code.l shouldBe List("y++ < x")
   }
 
   "should identify `do` block" in {
-    cpg.method("foo").doBlock.condition.code.l shouldBe List("i < 11")
+    cpg.method.name("foo").doBlock.condition.code.l shouldBe List("i < 11")
   }
 
   "should identify `goto`" in {
-    cpg.method("foo").goto.code.l shouldBe List("goto foo;")
+    cpg.method.name("foo").goto.code.l shouldBe List("goto foo;")
   }
 
   "should identify `break`" in {
-    cpg.method("foo").break.code.l shouldBe List("break;")
+    cpg.method.name("foo").break.code.l shouldBe List("break;")
   }
 
   "should identify `continue`" in {
-    cpg.method("foo").continue.code.l shouldBe List("continue;")
+    cpg.method.name("foo").continue.code.l shouldBe List("continue;")
   }
 
 }
