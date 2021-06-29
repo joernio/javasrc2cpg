@@ -1,7 +1,10 @@
-name: pr
-on: pull_request
+name: release
+on:
+  push:
+    branches: [master, main]
+    tags: ["*"]
 jobs:
-  pr:
+  release:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
