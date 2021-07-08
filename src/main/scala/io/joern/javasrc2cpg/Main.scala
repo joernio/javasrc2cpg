@@ -1,4 +1,4 @@
-package io.joern.javascr2cpg
+package io.joern.javasrc2cpg
 
 import io.shiftleft.x2cpg.{X2Cpg, X2CpgConfig}
 import scopt.OParser
