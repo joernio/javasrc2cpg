@@ -413,8 +413,8 @@ class AstCreator(filename: String) {
       case BinaryExpr.Operator.UNSIGNED_RIGHT_SHIFT => Operators.arithmeticShiftRight
       case BinaryExpr.Operator.XOR                  => Operators.xor
       case BinaryExpr.Operator.NOT_EQUALS           => Operators.notEquals
-      case BinaryExpr.Operator.PLUS                 => Operators.plus
-      case BinaryExpr.Operator.MINUS                => Operators.minus
+      case BinaryExpr.Operator.PLUS                 => Operators.addition
+      case BinaryExpr.Operator.MINUS                => Operators.subtraction
       case BinaryExpr.Operator.MULTIPLY             => Operators.multiplication
       case BinaryExpr.Operator.REMAINDER            => Operators.modulo
       case _                                        => ""
@@ -426,9 +426,9 @@ class AstCreator(filename: String) {
       .code(stmt.toString)
       .argumentIndex(order)
       .order(order)
-    Ast(callNode)
-      .withChildren(astsForExpression(stmt.getLeft, 0))
-      .withChildren(astsForExpression(stmt.getRight, 1))
+
+    val args = astsForExpression(stmt.getLeft, 0) ++ astsForExpression(stmt.getRight, 1)
+    callAst(callNode, args)
   }
 
   def astForVariableDecl(x: VariableDeclarationExpr, order: Int): Seq[Ast] = {
@@ -455,14 +455,7 @@ class AstCreator(filename: String) {
           .build
 
         val initAsts = astsForExpression(initializer, 2)
-        val ast = Ast(assignment)
-          .withChild(Ast(identifier))
-          .withChildren(initAsts)
-          .withArgEdge(assignment, identifier)
-
-        initAsts.foldLeft(ast) { (acc, iast) =>
-          iast.root.map { r => acc.withArgEdge(assignment, r) }.getOrElse(acc)
-        }
+        callAst(assignment, Seq(Ast(identifier)) ++ initAsts)
       }
 
       Seq(
@@ -473,12 +466,30 @@ class AstCreator(filename: String) {
     }
   }
 
+  def callAst(rootNode: NewNode, args: Seq[Ast]): Ast = {
+    Ast(rootNode)
+      .withChildren(args)
+      .withArgEdges(rootNode, args.flatMap(_.root))
+  }
+
   def astForIntegerLiteral(x: IntegerLiteralExpr, order: Int): Ast = {
     Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("int"))
   }
 
   def astForDoubleLiteral(x: DoubleLiteralExpr, order: Int): Ast = {
     Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("double"))
+  }
+
+  def astForNameExpr(x: NameExpr, order: Int): Ast = {
+    val name = x.getName.toString
+    Ast(
+      NewIdentifier()
+        .name(name)
+        .order(order)
+        .argumentIndex(order)
+        .code(name)
+        .typeFullName(x.resolve().getType.describe())
+    )
   }
 
   private def astsForExpression(expression: Expression, order: Int): Seq[Ast] = {
@@ -500,7 +511,7 @@ class AstCreator(filename: String) {
       case x: LiteralExpr             => Seq()
       case x: MethodCallExpr          => Seq(astForMethodCall(x, order))
       case x: MethodReferenceExpr     => Seq()
-      case x: NameExpr                => Seq()
+      case x: NameExpr                => Seq(astForNameExpr(x, order))
       case x: ObjectCreationExpr      => Seq()
       case x: PatternExpr             => Seq()
       case x: SuperExpr               => Seq()

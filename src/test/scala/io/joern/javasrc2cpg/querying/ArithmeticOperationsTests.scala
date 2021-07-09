@@ -7,7 +7,6 @@ import io.shiftleft.semanticcpg.language.{ICallResolver, NoResolve, toNodeTypeSt
 import io.shiftleft.semanticcpg.language._
 import org.scalatest.Ignore
 
-@Ignore
 class ArithmeticOperationsTests extends JavaSrcCodeToCpgFixture {
 
   implicit val resolver: ICallResolver = NoResolve
@@ -44,7 +43,7 @@ class ArithmeticOperationsTests extends JavaSrcCodeToCpgFixture {
   }
 
   "should contain a call node for the addition operator" in {
-    val List(op)                           = cpg.call(Operators.addition).l
+    val List(op)                           = cpg.call.nameExact(Operators.addition).l
     val List(a: Identifier, b: Identifier) = op.astOut.l
     a.name shouldBe "a"
     b.name shouldBe "b"
