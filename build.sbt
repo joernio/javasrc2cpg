@@ -5,7 +5,7 @@ publish / skip := true
 version := "0.1"
 scalaVersion := "2.13.4"
 
-val cpgVersion       = "1.3.224"
+val cpgVersion       = "1.3.225"
 val scalatestVersion = "3.1.1"
 
 fork := true
