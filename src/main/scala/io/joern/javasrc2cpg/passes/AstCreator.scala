@@ -11,10 +11,12 @@ import com.github.javaparser.ast.expr.{
   CastExpr,
   ClassExpr,
   ConditionalExpr,
+  DoubleLiteralExpr,
   EnclosedExpr,
   Expression,
   FieldAccessExpr,
   InstanceOfExpr,
+  IntegerLiteralExpr,
   LambdaExpr,
   LiteralExpr,
   MethodCallExpr,
@@ -61,7 +63,9 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewCall,
   NewControlStructure,
   NewFile,
+  NewIdentifier,
   NewJumpTarget,
+  NewLiteral,
   NewLocal,
   NewMethod,
   NewMethodParameterIn,
@@ -102,6 +106,9 @@ class AstCreator(filename: String) {
     }
     ast.conditionEdges.foreach { edge =>
       diffGraph.addEdge(edge.src, edge.dst, EdgeTypes.CONDITION)
+    }
+    ast.argEdges.foreach { edge =>
+      diffGraph.addEdge(edge.src, edge.dst, EdgeTypes.ARGUMENT)
     }
   }
 
@@ -413,21 +420,65 @@ class AstCreator(filename: String) {
       case _                                        => ""
     }
 
-    val callNode = NewCall(name = operatorName, methodFullName = operatorName, code = stmt.toString)
+    val callNode = NewCall()
+      .name(operatorName)
+      .methodFullName(operatorName)
+      .code(stmt.toString)
+      .argumentIndex(order)
+      .order(order)
     Ast(callNode)
       .withChildren(astsForExpression(stmt.getLeft, 0))
       .withChildren(astsForExpression(stmt.getRight, 1))
   }
 
   def astForVariableDecl(x: VariableDeclarationExpr, order: Int): Seq[Ast] = {
-    x.getVariables.asScala.toList.map { v =>
+    x.getVariables.asScala.toList.flatMap { v =>
       val name         = v.getName.toString
       val code         = v.getType + " " + v.getName.toString
       val typeFullName = v.getType.resolve().describe()
-      Ast(
-        NewLocal().name(name).code(code).typeFullName(typeFullName).order(order)
-      )
+
+      val initializerAst = v.getInitializer.asScala.zipWithIndex.map { case (initializer, i) =>
+        val code                    = s"$name = ${initializer.toString}"
+        val initializerTypeFullName = initializer.calculateResolvedType().describe()
+        val identifier = NewIdentifier()
+          .name(name)
+          .order(1)
+          .argumentIndex(1)
+          .code(name)
+          .typeFullName(initializerTypeFullName)
+        val assignment = NewCall()
+          .name(Operators.assignment)
+          .code(code)
+          .order(i + 1)
+          .argumentIndex(i + 1)
+          .typeFullName(typeFullName)
+          .build
+
+        val initAsts = astsForExpression(initializer, 2)
+        val ast = Ast(assignment)
+          .withChild(Ast(identifier))
+          .withChildren(initAsts)
+          .withArgEdge(assignment, identifier)
+
+        initAsts.foldLeft(ast) { (acc, iast) =>
+          iast.root.map { r => acc.withArgEdge(assignment, r) }.getOrElse(acc)
+        }
+      }
+
+      Seq(
+        Ast(
+          NewLocal().name(name).code(code).typeFullName(typeFullName).order(order)
+        )
+      ) ++ initializerAst.toList
     }
+  }
+
+  def astForIntegerLiteral(x: IntegerLiteralExpr, order: Int): Ast = {
+    Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("int"))
+  }
+
+  def astForDoubleLiteral(x: DoubleLiteralExpr, order: Int): Ast = {
+    Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("double"))
   }
 
   private def astsForExpression(expression: Expression, order: Int): Seq[Ast] = {
@@ -440,8 +491,10 @@ class AstCreator(filename: String) {
       case x: CastExpr                => Seq()
       case x: ClassExpr               => Seq()
       case x: ConditionalExpr         => Seq()
+      case x: DoubleLiteralExpr       => Seq(astForDoubleLiteral(x, order))
       case x: EnclosedExpr            => Seq()
       case x: FieldAccessExpr         => Seq()
+      case x: IntegerLiteralExpr      => Seq(astForIntegerLiteral(x, order))
       case x: InstanceOfExpr          => Seq()
       case x: LambdaExpr              => Seq()
       case x: LiteralExpr             => Seq()

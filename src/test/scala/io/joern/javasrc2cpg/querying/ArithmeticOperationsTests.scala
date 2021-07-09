@@ -4,6 +4,7 @@ import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
 import io.shiftleft.codepropertygraph.generated.Operators
 import io.shiftleft.codepropertygraph.generated.nodes.Identifier
 import io.shiftleft.semanticcpg.language.{ICallResolver, NoResolve, toNodeTypeStarters}
+import io.shiftleft.semanticcpg.language._
 import org.scalatest.Ignore
 
 @Ignore
@@ -35,18 +36,10 @@ class ArithmeticOperationsTests extends JavaSrcCodeToCpgFixture {
   )
 
   "should contain call nodes with <operation>.assignment for all variables" in {
-    val assignments = cpg.call(Operators.assignment).map(x => (x.name, x.typeFullName)).l
+    val assignments = cpg.assignment.map(x => (x.target.code, x.typeFullName)).l
     assignments.size shouldBe 6
     vars.foreach(x => {
       assignments contains x shouldBe true
-    })
-  }
-
-  "should contain all local variables for the given procedure" in {
-    val variables = cpg.local.l
-    variables.foreach(x => {
-      vars contains Tuple2(x.name, "int") shouldBe true
-      x.typeFullName shouldBe "int"
     })
   }
 
