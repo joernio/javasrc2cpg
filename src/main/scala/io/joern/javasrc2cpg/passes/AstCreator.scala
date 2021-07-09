@@ -62,6 +62,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewControlStructure,
   NewFile,
   NewJumpTarget,
+  NewLocal,
   NewMethod,
   NewMethodParameterIn,
   NewMethodReturn,
@@ -229,14 +230,14 @@ class AstCreator(filename: String) {
       case x: DoStmt                            => Seq(astForDo(x, order))
       case x: EmptyStmt                         => Seq()
       case x: ExplicitConstructorInvocationStmt => Seq() // TODO: translate to Call
-      case x: ExpressionStmt                    => Seq(astForExpression(x.getExpression, order))
+      case x: ExpressionStmt                    => astsForExpression(x.getExpression, order)
       case x: ForEachStmt                       => Seq() // TODO: translate to For
       case x: ForStmt                           => Seq(astForFor(x, order))
       case x: IfStmt                            => Seq(astForIf(x, order))
       case x: LabeledStmt                       => astsForLabeledStatement(x, order)
       case x: LocalClassDeclarationStmt         => Seq()
       case x: LocalRecordDeclarationStmt        => Seq()
-      case x: ReturnStmt                        => Seq(astForReturnNode(x, order))
+      case x: ReturnStmt                        => astsForReturnNode(x, order)
       case x: SwitchStmt                        => Seq(astForSwitchStatement(x, order))
       case x: SynchronizedStmt                  => Seq()
       case x: ThrowStmt                         => Seq()
@@ -250,7 +251,7 @@ class AstCreator(filename: String) {
 
   def astForIf(stmt: IfStmt, order: Int): Ast = {
     val ifNode       = NewControlStructure(controlStructureType = ControlStructureTypes.IF, order = order)
-    val conditionAst = astForExpression(stmt.getCondition, order = 0)
+    val conditionAst = astsForExpression(stmt.getCondition, order = 0).headOption.getOrElse(Ast())
     val stmtAsts     = astsForStatement(stmt.getThenStmt, order = 1)
 
     val ast = Ast(ifNode)
@@ -268,7 +269,7 @@ class AstCreator(filename: String) {
   def astForWhile(stmt: WhileStmt, order: Int): Ast = {
     val whileNode =
       NewControlStructure(controlStructureType = ControlStructureTypes.WHILE, order = order)
-    val conditionAst = astForExpression(stmt.getCondition, order = 0)
+    val conditionAst = astsForExpression(stmt.getCondition, order = 0).headOption.getOrElse(Ast())
     val stmtAsts     = astsForStatement(stmt.getBody, order = 1)
     val ast = Ast(whileNode)
       .withChild(conditionAst)
@@ -284,7 +285,7 @@ class AstCreator(filename: String) {
   def astForDo(stmt: DoStmt, order: Int): Ast = {
     val doNode =
       NewControlStructure(controlStructureType = ControlStructureTypes.DO, order = order)
-    val conditionAst = astForExpression(stmt.getCondition, order = 0)
+    val conditionAst = astsForExpression(stmt.getCondition, order = 0).headOption.getOrElse(Ast())
     val stmtAsts     = astsForStatement(stmt.getBody, order = 1)
     val ast = Ast(doNode)
       .withChild(conditionAst)
@@ -323,14 +324,16 @@ class AstCreator(filename: String) {
     val forNode =
       NewControlStructure(controlStructureType = ControlStructureTypes.FOR, order = order)
     val initAsts = withOrder(stmt.getInitialization) { (s, o) =>
-      astForExpression(s, o)
-    }
+      astsForExpression(s, o)
+    }.flatten
+
     val compareAst = stmt.getCompare.asScala.toList
-      .map(x => astForExpression(x, order + initAsts.size + 1))
+      .flatMap(x => astsForExpression(x, order + initAsts.size + 1))
       .headOption
     val updateAsts = withOrder(stmt.getUpdate) { (s, o) =>
-      astForExpression(s, o + initAsts.size + compareAst.size)
-    }
+      astsForExpression(s, o + initAsts.size + compareAst.size)
+    }.flatten
+
     val stmtAst =
       astsForStatement(stmt.getBody, initAsts.size + compareAst.size + updateAsts.size + 1)
 
@@ -377,12 +380,12 @@ class AstCreator(filename: String) {
     )
   }
 
-  private def astForReturnNode(ret: ReturnStmt, order: Int): Ast = {
+  private def astsForReturnNode(ret: ReturnStmt, order: Int): Seq[Ast] = {
     // TODO: Make return node with expression as children
     if (ret.getExpression.isPresent) {
-      astForExpression(ret.getExpression.get(), order + 1)
+      astsForExpression(ret.getExpression.get(), order + 1)
     } else {
-      Ast()
+      Seq()
     }
   }
 
@@ -412,37 +415,48 @@ class AstCreator(filename: String) {
 
     val callNode = NewCall(name = operatorName, methodFullName = operatorName, code = stmt.toString)
     Ast(callNode)
-      .withChild(astForExpression(stmt.getLeft, 0))
-      .withChild(astForExpression(stmt.getRight, 1))
+      .withChildren(astsForExpression(stmt.getLeft, 0))
+      .withChildren(astsForExpression(stmt.getRight, 1))
   }
 
-  private def astForExpression(expression: Expression, order: Int): Ast = {
+  def astForVariableDecl(x: VariableDeclarationExpr, order: Int): Seq[Ast] = {
+    x.getVariables.asScala.toList.map { v =>
+      val name         = v.getName.toString
+      val code         = v.getType + " " + v.getName.toString
+      val typeFullName = v.getType.resolve().describe()
+      Ast(
+        NewLocal().name(name).code(code).typeFullName(typeFullName).order(order)
+      )
+    }
+  }
+
+  private def astsForExpression(expression: Expression, order: Int): Seq[Ast] = {
     expression match {
-      case x: AnnotationExpr          => Ast()
-      case x: ArrayAccessExpr         => Ast()
-      case x: ArrayInitializerExpr    => Ast()
-      case x: AssignExpr              => Ast()
-      case x: BinaryExpr              => astForBinaryExpr(x, order)
-      case x: CastExpr                => Ast()
-      case x: ClassExpr               => Ast()
-      case x: ConditionalExpr         => Ast()
-      case x: EnclosedExpr            => Ast()
-      case x: FieldAccessExpr         => Ast()
-      case x: InstanceOfExpr          => Ast()
-      case x: LambdaExpr              => Ast()
-      case x: LiteralExpr             => Ast()
-      case x: MethodCallExpr          => astForMethodCall(x, order)
-      case x: MethodReferenceExpr     => Ast()
-      case x: NameExpr                => Ast()
-      case x: ObjectCreationExpr      => Ast()
-      case x: PatternExpr             => Ast()
-      case x: SuperExpr               => Ast()
-      case x: SwitchExpr              => Ast()
-      case x: ThisExpr                => Ast()
-      case x: TypeExpr                => Ast()
-      case x: UnaryExpr               => Ast()
-      case x: VariableDeclarationExpr => Ast()
-      case _                          => Ast()
+      case x: AnnotationExpr          => Seq()
+      case x: ArrayAccessExpr         => Seq()
+      case x: ArrayInitializerExpr    => Seq()
+      case x: AssignExpr              => Seq()
+      case x: BinaryExpr              => Seq(astForBinaryExpr(x, order))
+      case x: CastExpr                => Seq()
+      case x: ClassExpr               => Seq()
+      case x: ConditionalExpr         => Seq()
+      case x: EnclosedExpr            => Seq()
+      case x: FieldAccessExpr         => Seq()
+      case x: InstanceOfExpr          => Seq()
+      case x: LambdaExpr              => Seq()
+      case x: LiteralExpr             => Seq()
+      case x: MethodCallExpr          => Seq(astForMethodCall(x, order))
+      case x: MethodReferenceExpr     => Seq()
+      case x: NameExpr                => Seq()
+      case x: ObjectCreationExpr      => Seq()
+      case x: PatternExpr             => Seq()
+      case x: SuperExpr               => Seq()
+      case x: SwitchExpr              => Seq()
+      case x: ThisExpr                => Seq()
+      case x: TypeExpr                => Seq()
+      case x: UnaryExpr               => Seq()
+      case x: VariableDeclarationExpr => astForVariableDecl(x, order)
+      case _                          => Seq()
     }
   }
 
