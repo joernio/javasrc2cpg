@@ -83,12 +83,17 @@ import scala.collection.mutable
 import scala.compat.java8.OptionConverters.RichOptionalGeneric
 import scala.util.{Failure, Success, Try}
 
-class AstCreator(filename: String) {
+class AstCreator(filename: String, global: Global) {
 
   import AstCreator._
 
   val stack: mutable.Stack[NewNode] = mutable.Stack()
   val diffGraph: DiffGraph.Builder  = DiffGraph.newBuilder
+
+  private def registerType(typeName: String): String = {
+    global.usedTypes.put(typeName, true)
+    typeName
+  }
 
   def createAst(parserResult: CompilationUnit): Iterator[DiffGraph] = {
     storeInDiffGraph(astForCompilationUnit(parserResult))
@@ -113,33 +118,16 @@ class AstCreator(filename: String) {
   }
 
   def astForCompilationUnit(compilationUnit: CompilationUnit): Ast = {
-    astForPackageDeclaration(compilationUnit.getPackageDeclaration.asScala)
+    val ast = astForPackageDeclaration(compilationUnit.getPackageDeclaration.asScala)
+    val namespaceBlockFullName =
+      ast.root.collect { case x: NewNamespaceBlock => x.fullName }.getOrElse("none")
+    ast
       .withChildren(withOrder(compilationUnit.getTypes) { (typ, order) =>
-        astForTypeDecl(typ, order)
+        astForTypeDecl(typ, order, namespaceBlockFullName)
       })
   }
 
-  def astForTypeDecl(typ: TypeDeclaration[_], order: Int): Ast = {
-    val baseTypeFullNames = typ
-      .asClassOrInterfaceDeclaration()
-      .getExtendedTypes
-      .asScala
-      .map(_.resolve().getQualifiedName)
-      .toList
-
-    val typeDecl = NewTypeDecl()
-      .name(typ.getNameAsString)
-      .fullName(typ.getFullyQualifiedName.asScala.getOrElse(""))
-      .inheritsFromTypeFullName(baseTypeFullNames)
-      .order(order)
-      .filename(filename)
-    Ast(typeDecl).withChildren(
-      withOrder(typ.getMethods) { (m, order) => astForMethod(m, typ, order) }
-    )
-  }
-
   def astForPackageDeclaration(packageDecl: Option[PackageDeclaration]): Ast = {
-
     val absolutePath = new java.io.File(filename).toPath.toAbsolutePath.normalize().toString
     val namespaceBlock = packageDecl match {
       case Some(decl) =>
@@ -154,6 +142,29 @@ class AstCreator(filename: String) {
           .fullName(globalNamespaceName)
     }
     Ast(namespaceBlock.filename(absolutePath).order(1))
+  }
+
+  def astForTypeDecl(typ: TypeDeclaration[_], order: Int, namespaceBlockFullName: String): Ast = {
+    val baseTypeFullNames = typ
+      .asClassOrInterfaceDeclaration()
+      .getExtendedTypes
+      .asScala
+      .map(x => registerType(x.resolve().getQualifiedName))
+      .toList
+
+    val typeDecl = NewTypeDecl()
+      .name(typ.getNameAsString)
+      .fullName(typ.getFullyQualifiedName.asScala.getOrElse(""))
+      .inheritsFromTypeFullName(baseTypeFullNames)
+      .order(order)
+      .filename(filename)
+      .code(typ.getNameAsString)
+      .astParentType("NAMESPACE_BLOCK")
+      .astParentFullName(namespaceBlockFullName)
+
+    Ast(typeDecl).withChildren(
+      withOrder(typ.getMethods) { (m, order) => astForMethod(m, typ, order) }
+    )
   }
 
   private def astForMethod(
@@ -173,10 +184,11 @@ class AstCreator(filename: String) {
   }
 
   private def astForMethodReturn(methodDeclaration: MethodDeclaration): Ast = {
+    val typeFullName = registerType(methodDeclaration.getType.resolve().describe())
     val methodReturnNode =
       NewMethodReturn()
         .order(methodDeclaration.getParameters.size + 2)
-        .typeFullName(methodDeclaration.getType.resolve().describe())
+        .typeFullName(typeFullName)
         .code(methodDeclaration.getTypeAsString)
         .lineNumber(line(methodDeclaration.getType))
     Ast(methodReturnNode)
@@ -432,11 +444,11 @@ class AstCreator(filename: String) {
     x.getVariables.asScala.toList.flatMap { v =>
       val name         = v.getName.toString
       val code         = v.getType + " " + v.getName.toString
-      val typeFullName = v.getType.resolve().describe()
+      val typeFullName = registerType(v.getType.resolve().describe())
 
       val initializerAst = v.getInitializer.asScala.zipWithIndex.map { case (initializer, i) =>
         val code                    = s"$name = ${initializer.toString}"
-        val initializerTypeFullName = initializer.calculateResolvedType().describe()
+        val initializerTypeFullName = registerType(initializer.calculateResolvedType().describe())
         val identifier = NewIdentifier()
           .name(name)
           .order(1)
@@ -470,22 +482,25 @@ class AstCreator(filename: String) {
   }
 
   def astForIntegerLiteral(x: IntegerLiteralExpr, order: Int): Ast = {
+    registerType("int")
     Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("int"))
   }
 
   def astForDoubleLiteral(x: DoubleLiteralExpr, order: Int): Ast = {
+    registerType("double")
     Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("double"))
   }
 
   def astForNameExpr(x: NameExpr, order: Int): Ast = {
-    val name = x.getName.toString
+    val name         = x.getName.toString
+    val typeFullName = registerType(x.resolve().getType.describe())
     Ast(
       NewIdentifier()
         .name(name)
         .order(order)
         .argumentIndex(order)
         .code(name)
-        .typeFullName(x.resolve().getType.describe())
+        .typeFullName(typeFullName)
     )
   }
 
@@ -548,10 +563,11 @@ class AstCreator(filename: String) {
   }
 
   private def astForParameter(parameter: Parameter, childNum: Int): Ast = {
+    val typeFullName = registerType(parameter.getType.resolve().describe())
     val parameterNode = NewMethodParameterIn()
       .name(parameter.getName.toString)
       .code(parameter.toString)
-      .typeFullName(parameter.getType.resolve().describe())
+      .typeFullName(typeFullName)
       .order(childNum)
       .lineNumber(line(parameter))
       .columnNumber(column(parameter))
