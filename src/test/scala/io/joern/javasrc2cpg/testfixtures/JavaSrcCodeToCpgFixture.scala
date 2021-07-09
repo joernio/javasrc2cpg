@@ -1,6 +1,6 @@
 package io.joern.javasrc2cpg.testfixtures
 
-import io.joern.javascr2cpg.JavaSrc2Cpg
+import io.joern.javasrc2cpg.JavaSrc2Cpg
 import io.shiftleft.codepropertygraph.Cpg
 import io.shiftleft.semanticcpg.testfixtures.{CodeToCpgFixture, LanguageFrontend}
 

@@ -1,4 +1,4 @@
-package io.joern.javascr2cpg.passes
+package io.joern.javasrc2cpg.passes
 
 import com.github.javaparser.ast.Node.Parsedness
 import com.github.javaparser.{JavaParser, ParserConfiguration}

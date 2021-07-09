@@ -1,6 +1,6 @@
-package io.joern.javascr2cpg
+package io.joern.javasrc2cpg
 
-import io.joern.javascr2cpg.passes.AstCreationPass
+import io.joern.javasrc2cpg.passes.AstCreationPass
 import io.shiftleft.codepropertygraph.Cpg
 import io.shiftleft.passes.IntervalKeyPool
 import io.shiftleft.semanticcpg.passes.FileCreationPass
