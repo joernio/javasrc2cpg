@@ -71,58 +71,12 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
 }
 import io.shiftleft.passes.DiffGraph
 import io.shiftleft.semanticcpg.language.types.structure.NamespaceTraversal.globalNamespaceName
+import io.shiftleft.x2cpg.Ast
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.compat.java8.OptionConverters.RichOptionalGeneric
 import scala.util.{Failure, Success, Try}
-
-case class AstEdge(src: NewNode, dst: NewNode)
-
-object Ast {
-  def apply(node: NewNode): Ast = Ast(List(node))
-  def apply(): Ast              = new Ast(List())
-}
-
-case class Ast(
-    nodes: List[NewNode],
-    edges: List[AstEdge] = List(),
-    conditionEdges: List[AstEdge] = List()
-) {
-
-  def root: Option[NewNode]          = nodes.headOption
-  def rightMostLeaf: Option[NewNode] = nodes.lastOption
-
-  /** AST that results when adding `other` as a child to this AST.
-    * `other` is connected to this AST's root node.
-    */
-  def withChild(other: Ast): Ast = {
-    Ast(
-      nodes ++ other.nodes,
-      edges = edges ++ other.edges ++ root.toList.flatMap(r =>
-        other.root.toList.map { rc => AstEdge(r, rc) }
-      ),
-      conditionEdges = conditionEdges ++ other.conditionEdges
-    )
-  }
-
-  /** AST that results when adding all ASTs in `asts` as children,
-    * that is, connecting them to the root node of this AST.
-    */
-  def withChildren(asts: Seq[Ast]): Ast = {
-    asts.headOption match {
-      case Some(head) =>
-        withChild(head).withChildren(asts.tail)
-      case None =>
-        this
-    }
-  }
-
-  def withConditionEdge(src: NewNode, dst: NewNode): Ast = {
-    this.copy(conditionEdges = conditionEdges ++ List(AstEdge(src, dst)))
-  }
-
-}
 
 class AstCreator(filename: String) {
 
