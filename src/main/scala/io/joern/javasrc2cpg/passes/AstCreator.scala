@@ -91,7 +91,7 @@ class AstCreator(filename: String) {
   val diffGraph: DiffGraph.Builder  = DiffGraph.newBuilder
 
   def createAst(parserResult: CompilationUnit): Iterator[DiffGraph] = {
-    storeInDiffGraph(astForFile(parserResult))
+    storeInDiffGraph(astForCompilationUnit(parserResult))
     Iterator(diffGraph.build)
   }
 
@@ -112,14 +112,11 @@ class AstCreator(filename: String) {
     }
   }
 
-  def astForFile(parserResult: CompilationUnit): Ast = {
-    Ast(NewFile(name = filename, order = 0))
-      .withChild(
-        astForPackageDeclaration(parserResult.getPackageDeclaration.asScala)
-          .withChildren(withOrder(parserResult.getTypes) { (typ, order) =>
-            astForTypeDecl(typ, order)
-          })
-      )
+  def astForCompilationUnit(compilationUnit: CompilationUnit): Ast = {
+    astForPackageDeclaration(compilationUnit.getPackageDeclaration.asScala)
+      .withChildren(withOrder(compilationUnit.getTypes) { (typ, order) =>
+        astForTypeDecl(typ, order)
+      })
   }
 
   def astForTypeDecl(typ: TypeDeclaration[_], order: Int): Ast = {
