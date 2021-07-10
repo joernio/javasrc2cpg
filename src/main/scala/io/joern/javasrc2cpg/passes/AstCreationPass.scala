@@ -12,12 +12,18 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
 }
 import org.slf4j.LoggerFactory
 
+import java.util.concurrent.ConcurrentHashMap
 import scala.compat.java8.OptionConverters.RichOptionalGeneric
 import scala.jdk.CollectionConverters._
+
+case class Global(
+    usedTypes: ConcurrentHashMap[String, Boolean] = new ConcurrentHashMap[String, Boolean]()
+)
 
 class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPool: IntervalKeyPool)
     extends ParallelCpgPass[String](cpg, keyPools = Some(keyPool.split(filenames.size))) {
 
+  val global: Global = Global()
   private val logger = LoggerFactory.getLogger(classOf[AstCreationPass])
 
   override def partIterator: Iterator[String] = filenames.iterator
@@ -32,7 +38,7 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
 
     parseResult.getResult.asScala match {
       case Some(result) if result.getParsed == Parsedness.PARSED =>
-        new AstCreator(filename).createAst(result)
+        new AstCreator(filename, global).createAst(result)
       case _ =>
         logger.warn("Cannot parse: " + filename)
         logger.warn("Problems: ", parseResult.getProblems.asScala.toList.map(_.toString))
