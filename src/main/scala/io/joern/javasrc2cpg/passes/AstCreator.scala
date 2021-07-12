@@ -57,6 +57,7 @@ import com.github.javaparser.ast.stmt.{
   WhileStmt,
   YieldStmt
 }
+import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration
 import io.shiftleft.codepropertygraph.generated.{ControlStructureTypes, EdgeTypes, Operators}
 import io.shiftleft.codepropertygraph.generated.nodes.{
   NewBlock,
@@ -64,6 +65,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewControlStructure,
   NewFile,
   NewIdentifier,
+  NewIdentifierBuilder,
   NewJumpTarget,
   NewLiteral,
   NewLocal,
@@ -71,6 +73,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewMethodParameterIn,
   NewMethodReturn,
   NewNamespaceBlock,
+  NewNamespaceBlockBuilder,
   NewNode,
   NewTypeDecl
 }
@@ -90,11 +93,19 @@ class AstCreator(filename: String, global: Global) {
   val stack: mutable.Stack[NewNode] = mutable.Stack()
   val diffGraph: DiffGraph.Builder  = DiffGraph.newBuilder
 
+  /** Add `typeName` to a global map and return it. The
+    * map is later passed to a pass that creates TYPE
+    * nodes for each key in the map.
+    */
   private def registerType(typeName: String): String = {
     global.usedTypes.put(typeName, true)
     typeName
   }
 
+  /** Entry point of AST creation. Translates a compilation
+    * unit created by JavaParser into a DiffGraph containing
+    * the corresponding CPG AST.
+    */
   def createAst(parserResult: CompilationUnit): Iterator[DiffGraph] = {
     storeInDiffGraph(astForCompilationUnit(parserResult))
     Iterator(diffGraph.build)
@@ -117,7 +128,9 @@ class AstCreator(filename: String, global: Global) {
     }
   }
 
-  def astForCompilationUnit(compilationUnit: CompilationUnit): Ast = {
+  /** Translate compilation unit into AST
+    */
+  private def astForCompilationUnit(compilationUnit: CompilationUnit): Ast = {
     val ast = astForPackageDeclaration(compilationUnit.getPackageDeclaration.asScala)
     val namespaceBlockFullName =
       ast.root.collect { case x: NewNamespaceBlock => x.fullName }.getOrElse("none")
@@ -127,7 +140,10 @@ class AstCreator(filename: String, global: Global) {
       })
   }
 
-  def astForPackageDeclaration(packageDecl: Option[PackageDeclaration]): Ast = {
+  /** Translate package declaration into AST consisting of
+    * a corresponding namespace block.
+    */
+  private def astForPackageDeclaration(packageDecl: Option[PackageDeclaration]): Ast = {
     val absolutePath = new java.io.File(filename).toPath.toAbsolutePath.normalize().toString
     val namespaceBlock = packageDecl match {
       case Some(decl) =>
@@ -137,14 +153,21 @@ class AstCreator(filename: String, global: Global) {
           .name(name)
           .fullName(packageName)
       case None =>
-        NewNamespaceBlock()
-          .name(globalNamespaceName)
-          .fullName(globalNamespaceName)
+        createGlobalNamespaceBlock
     }
     Ast(namespaceBlock.filename(absolutePath).order(1))
   }
 
-  def astForTypeDecl(typ: TypeDeclaration[_], order: Int, namespaceBlockFullName: String): Ast = {
+  private def createGlobalNamespaceBlock: NewNamespaceBlockBuilder =
+    NewNamespaceBlock()
+      .name(globalNamespaceName)
+      .fullName(globalNamespaceName)
+
+  private def astForTypeDecl(
+      typ: TypeDeclaration[_],
+      order: Int,
+      namespaceBlockFullName: String
+  ): Ast = {
     val baseTypeFullNames = typ
       .asClassOrInterfaceDeclaration()
       .getExtendedTypes
@@ -536,30 +559,66 @@ class AstCreator(filename: String, global: Global) {
     }
   }
 
-  private def astForMethodCall(call: MethodCallExpr, order: Int = 1): Ast = {
-
+  private def createCallNode(
+      call: MethodCallExpr,
+      resolvedDecl: Try[ResolvedMethodDeclaration],
+      order: Int
+  ) = {
     val callNode = NewCall()
       .name(call.getNameAsString)
       .code(s"${call.getNameAsString}(${call.getArguments.asScala.mkString(", ")})")
       .order(order)
       .argumentIndex(order)
-
-    Try(call.resolve()) match {
-      case Success(x) =>
-        val signature = s"${x.getReturnType.describe()}(${(for (i <- 0 until x.getNumberOfParams)
-          yield x.getParam(i).getType.describe()).mkString(",")})"
-        callNode.methodFullName(s"${x.getQualifiedName}:$signature")
+    resolvedDecl match {
+      case Success(resolved) =>
+        val signature =
+          s"${resolved.getReturnType.describe()}(${(for (i <- 0 until resolved.getNumberOfParams)
+            yield resolved.getParam(i).getType.describe()).mkString(",")})"
+        callNode.methodFullName(s"${resolved.getQualifiedName}:$signature")
         callNode.signature(signature)
-      // TODO: Generate AST children here
-      case Failure(_) =>
-    }
+      case Failure(exception) =>
 
+    }
     if (call.getName.getBegin.isPresent) {
       callNode
         .lineNumber(line(call.getName))
         .columnNumber(column(call.getName))
     }
+    callNode
+  }
+
+  private def createThisNode(
+      resolvedDecl: Try[ResolvedMethodDeclaration]
+  ): Option[NewIdentifierBuilder] = {
+    resolvedDecl.toOption
+      .filterNot(_.isStatic)
+      .map { resolved =>
+        NewIdentifier()
+          .name("this")
+          .code("this")
+          .typeFullName(resolved.declaringType().getQualifiedName)
+          .order(0)
+          .argumentIndex(0)
+      }
+  }
+
+  private def astForMethodCall(call: MethodCallExpr, order: Int = 1): Ast = {
+
+    val resolvedDecl = Try(call.resolve())
+    val callNode     = createCallNode(call, resolvedDecl, order)
+    val thisAsts     = createThisNode(resolvedDecl).map(x => Ast(x.build)).toList
+
+    val argAsts = withOrder(call.getArguments) { case (arg, order) =>
+      // FIXME: There's an implicit assumption here that each call to
+      // astsForExpression only returns a single tree.
+      astsForExpression(arg, order)
+    }.flatten
+
     Ast(callNode)
+      .withChildren(thisAsts)
+      .withChildren(argAsts)
+      .withArgEdges(callNode, thisAsts.flatMap(_.root))
+      .withArgEdges(callNode, argAsts.flatMap(_.root))
   }
 
   private def astForParameter(parameter: Parameter, childNum: Int): Ast = {
