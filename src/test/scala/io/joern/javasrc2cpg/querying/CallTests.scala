@@ -63,14 +63,14 @@ class CallTests extends JavaSrcCodeToCpgFixture {
     x.name shouldBe "main"
   }
 
-//  "should allow traversing from call to callee method" in {
-//    val List(x) = cpg.call("add").callee.l
-//    x.name shouldBe "add"
-//  }
+  "should allow traversing from call to callee method" in {
+    val List(x) = cpg.call("add").callee.l
+    x.name shouldBe "add"
+  }
 
-//  "should allow traversing from argument to parameter" in {
-//    val List(x) = cpg.call("add").argument(1).parameter.l
-//    x.name shouldBe "x"
-//  }
+  "should allow traversing from argument to parameter" in {
+    val List(x) = cpg.call("add").argument(1).parameter.l
+    x.name shouldBe "x"
+  }
 
 }

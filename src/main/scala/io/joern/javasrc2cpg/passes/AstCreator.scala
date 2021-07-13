@@ -63,7 +63,12 @@ import com.github.javaparser.ast.stmt.{
   YieldStmt
 }
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration
-import io.shiftleft.codepropertygraph.generated.{ControlStructureTypes, EdgeTypes, Operators}
+import io.shiftleft.codepropertygraph.generated.{
+  ControlStructureTypes,
+  DispatchTypes,
+  EdgeTypes,
+  Operators
+}
 import io.shiftleft.codepropertygraph.generated.nodes.{
   NewBlock,
   NewCall,
@@ -614,6 +619,7 @@ class AstCreator(filename: String, global: Global) {
             yield resolved.getParam(i).getType.describe()).mkString(",")})"
         callNode.methodFullName(s"${resolved.getQualifiedName}:$signature")
         callNode.signature(signature)
+        callNode.dispatchType(DispatchTypes.STATIC_DISPATCH)
       case Failure(exception) =>
 
     }

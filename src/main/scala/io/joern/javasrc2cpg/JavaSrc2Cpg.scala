@@ -5,8 +5,11 @@ import io.shiftleft.codepropertygraph.Cpg
 import io.shiftleft.passes.IntervalKeyPool
 import io.shiftleft.semanticcpg.passes.FileCreationPass
 import io.shiftleft.semanticcpg.passes.containsedges.ContainsEdgePass
+import io.shiftleft.semanticcpg.passes.languagespecific.fuzzyc.MethodStubCreator
+import io.shiftleft.semanticcpg.passes.linking.calllinker.StaticCallLinker
 import io.shiftleft.semanticcpg.passes.linking.linker.Linker
 import io.shiftleft.semanticcpg.passes.metadata.MetaDataPass
+import io.shiftleft.semanticcpg.passes.methoddecorations.MethodDecoratorPass
 import io.shiftleft.semanticcpg.passes.namespacecreator.NamespaceCreator
 import io.shiftleft.semanticcpg.passes.typenodes.{TypeDeclStubCreator, TypeNodePass}
 import io.shiftleft.x2cpg.SourceFiles
@@ -52,6 +55,10 @@ class JavaSrc2Cpg {
 
     new ContainsEdgePass(cpg).createAndApply()
     new Linker(cpg).createAndApply()
+
+    new MethodStubCreator(cpg).createAndApply()
+    new MethodDecoratorPass(cpg).createAndApply()
+    new StaticCallLinker(cpg).createAndApply()
     cpg
   }
 
