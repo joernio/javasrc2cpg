@@ -4,7 +4,6 @@ import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
 import io.shiftleft.semanticcpg.language._
 import org.scalatest.Ignore
 
-@Ignore
 class TypeTests extends JavaSrcCodeToCpgFixture {
 
   override val code: String =
@@ -25,7 +24,7 @@ class TypeTests extends JavaSrcCodeToCpgFixture {
     val List(x) = cpg.typ.name("Long").l
     x.name shouldBe "Long"
     x.fullName shouldBe "java.lang.Long"
-    x.typeDeclFullName shouldBe "java.long.Long"
+    x.typeDeclFullName shouldBe "java.lang.Long"
   }
 
   "should create TYPE node with correct fields for return type" in {

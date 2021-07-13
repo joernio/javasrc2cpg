@@ -210,8 +210,8 @@ class AstCreator(filename: String, global: Global) {
       .withChildren(methodAsts)
   }
 
-  private def astForVariableDeclarator(v: VariableDeclarator, order: Int) = {
-    val typeFullName = v.getType.resolve().describe()
+  private def astForVariableDeclarator(v: VariableDeclarator, order: Int): Ast = {
+    val typeFullName = registerType(v.getType.resolve().describe())
     val name         = v.getName.toString
     Ast(
       NewMember()

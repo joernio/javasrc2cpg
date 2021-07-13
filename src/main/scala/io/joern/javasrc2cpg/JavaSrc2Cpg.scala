@@ -5,6 +5,7 @@ import io.shiftleft.codepropertygraph.Cpg
 import io.shiftleft.passes.IntervalKeyPool
 import io.shiftleft.semanticcpg.passes.FileCreationPass
 import io.shiftleft.semanticcpg.passes.containsedges.ContainsEdgePass
+import io.shiftleft.semanticcpg.passes.linking.linker.Linker
 import io.shiftleft.semanticcpg.passes.metadata.MetaDataPass
 import io.shiftleft.semanticcpg.passes.namespacecreator.NamespaceCreator
 import io.shiftleft.semanticcpg.passes.typenodes.{TypeDeclStubCreator, TypeNodePass}
@@ -50,6 +51,7 @@ class JavaSrc2Cpg {
     new TypeDeclStubCreator(cpg).createAndApply()
 
     new ContainsEdgePass(cpg).createAndApply()
+    new Linker(cpg).createAndApply()
     cpg
   }
 
