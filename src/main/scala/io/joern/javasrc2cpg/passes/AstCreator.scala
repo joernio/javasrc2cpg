@@ -254,8 +254,11 @@ class AstCreator(filename: String, global: Global) {
       typeDecl: TypeDeclaration[_],
       childNum: Int
   ) = {
-    val fullName = methodFullName(typeDecl, methodDeclaration)
-    val code     = methodDeclaration.getDeclarationAsString().trim
+    val fullName     = methodFullName(typeDecl, methodDeclaration)
+    val code         = methodDeclaration.getDeclarationAsString().trim
+    val columnNumber = methodDeclaration.getBegin.map(x => Integer.valueOf(x.column)).asScala
+    val endLine      = methodDeclaration.getEnd.map(x => Integer.valueOf(x.line)).asScala
+    val endColumn    = methodDeclaration.getEnd.map(x => Integer.valueOf(x.column)).asScala
     val methodNode = NewMethod()
       .name(methodDeclaration.getNameAsString)
       .fullName(fullName)
@@ -265,6 +268,9 @@ class AstCreator(filename: String, global: Global) {
       .order(childNum)
       .filename(filename)
       .lineNumber(line(methodDeclaration))
+      .columnNumber(columnNumber)
+      .lineNumberEnd(endLine)
+      .columnNumberEnd(endColumn)
     methodNode
   }
 

@@ -27,14 +27,14 @@ class MethodTests extends JavaSrcCodeToCpgFixture {
     x.filename.startsWith(File.separator) shouldBe true
     x.filename.endsWith(".java") shouldBe true
     x.lineNumber shouldBe Some(2)
-    // x.lineNumberEnd shouldBe Some(3)
-    // x.columnNumber shouldBe Some(2)
-    // x.columnNumberEnd shouldBe Some(1)
+    x.lineNumberEnd shouldBe Some(4)
+    x.columnNumber shouldBe Some(4)
+    x.columnNumberEnd shouldBe Some(4)
   }
 
-//  "should return correct number of lines" in {
-//    cpg.method.name("foo").numberOfLines.l shouldBe List(2)
-//  }
+  "should return correct number of lines" in {
+    cpg.method.name("foo").numberOfLines.l shouldBe List(3)
+  }
 
   "should allow traversing to parameters" in {
     cpg.method.name("foo").parameter.name.toSet shouldBe Set("param1", "param2")
