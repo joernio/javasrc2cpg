@@ -1,7 +1,12 @@
 package io.joern.javasrc2cpg.passes
 
 import com.github.javaparser.ast.{CompilationUnit, Node, PackageDeclaration}
-import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
+import com.github.javaparser.ast.body.{
+  MethodDeclaration,
+  Parameter,
+  TypeDeclaration,
+  VariableDeclarator
+}
 import com.github.javaparser.ast.expr.{
   AnnotationExpr,
   ArrayAccessExpr,
@@ -196,21 +201,25 @@ class AstCreator(filename: String, global: Global) {
       }
       .zipWithIndex
       .map { case (v, i) =>
-        val typeFullName = v.getType.resolve().describe()
-        val name         = v.getName.toString
-        Ast(
-          NewMember()
-            .name(name)
-            .typeFullName(typeFullName)
-            .order(methodAsts.size + i + 1)
-            .code(s"$typeFullName $name")
-        )
+        astForVariableDeclarator(v, i + methodAsts.size + 1)
       }
       .toList
 
     Ast(typeDecl)
       .withChildren(memberAsts)
       .withChildren(methodAsts)
+  }
+
+  private def astForVariableDeclarator(v: VariableDeclarator, order: Int) = {
+    val typeFullName = v.getType.resolve().describe()
+    val name         = v.getName.toString
+    Ast(
+      NewMember()
+        .name(name)
+        .typeFullName(typeFullName)
+        .order(order)
+        .code(s"$typeFullName $name")
+    )
   }
 
   private def astForMethod(
