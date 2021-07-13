@@ -69,6 +69,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewJumpTarget,
   NewLiteral,
   NewLocal,
+  NewMember,
   NewMethod,
   NewMethodParameterIn,
   NewMethodReturn,
@@ -185,9 +186,31 @@ class AstCreator(filename: String, global: Global) {
       .astParentType("NAMESPACE_BLOCK")
       .astParentFullName(namespaceBlockFullName)
 
-    Ast(typeDecl).withChildren(
-      withOrder(typ.getMethods) { (m, order) => astForMethod(m, typ, order) }
-    )
+    val methodAsts = withOrder(typ.getMethods) { (m, order) => astForMethod(m, typ, order) }
+
+    val memberAsts = typ.getMembers.asScala
+      .filter(_.isFieldDeclaration)
+      .flatMap { m =>
+        val fieldDeclaration = m.asFieldDeclaration()
+        fieldDeclaration.getVariables.asScala
+      }
+      .zipWithIndex
+      .map { case (v, i) =>
+        val typeFullName = v.getType.resolve().describe()
+        val name         = v.getName.toString
+        Ast(
+          NewMember()
+            .name(name)
+            .typeFullName(typeFullName)
+            .order(methodAsts.size + i + 1)
+            .code(s"$typeFullName $name")
+        )
+      }
+      .toList
+
+    Ast(typeDecl)
+      .withChildren(memberAsts)
+      .withChildren(methodAsts)
   }
 
   private def astForMethod(
