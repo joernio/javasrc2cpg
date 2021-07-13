@@ -1,7 +1,12 @@
 package io.joern.javasrc2cpg.passes
 
 import com.github.javaparser.ast.{CompilationUnit, Node, PackageDeclaration}
-import com.github.javaparser.ast.body.{MethodDeclaration, Parameter, TypeDeclaration}
+import com.github.javaparser.ast.body.{
+  MethodDeclaration,
+  Parameter,
+  TypeDeclaration,
+  VariableDeclarator
+}
 import com.github.javaparser.ast.expr.{
   AnnotationExpr,
   ArrayAccessExpr,
@@ -58,7 +63,12 @@ import com.github.javaparser.ast.stmt.{
   YieldStmt
 }
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration
-import io.shiftleft.codepropertygraph.generated.{ControlStructureTypes, EdgeTypes, Operators}
+import io.shiftleft.codepropertygraph.generated.{
+  ControlStructureTypes,
+  DispatchTypes,
+  EdgeTypes,
+  Operators
+}
 import io.shiftleft.codepropertygraph.generated.nodes.{
   NewBlock,
   NewCall,
@@ -69,6 +79,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewJumpTarget,
   NewLiteral,
   NewLocal,
+  NewMember,
   NewMethod,
   NewMethodParameterIn,
   NewMethodReturn,
@@ -185,8 +196,34 @@ class AstCreator(filename: String, global: Global) {
       .astParentType("NAMESPACE_BLOCK")
       .astParentFullName(namespaceBlockFullName)
 
-    Ast(typeDecl).withChildren(
-      withOrder(typ.getMethods) { (m, order) => astForMethod(m, typ, order) }
+    val methodAsts = withOrder(typ.getMethods) { (m, order) => astForMethod(m, typ, order) }
+
+    val memberAsts = typ.getMembers.asScala
+      .filter(_.isFieldDeclaration)
+      .flatMap { m =>
+        val fieldDeclaration = m.asFieldDeclaration()
+        fieldDeclaration.getVariables.asScala
+      }
+      .zipWithIndex
+      .map { case (v, i) =>
+        astForVariableDeclarator(v, i + methodAsts.size + 1)
+      }
+      .toList
+
+    Ast(typeDecl)
+      .withChildren(memberAsts)
+      .withChildren(methodAsts)
+  }
+
+  private def astForVariableDeclarator(v: VariableDeclarator, order: Int): Ast = {
+    val typeFullName = registerType(v.getType.resolve().describe())
+    val name         = v.getName.toString
+    Ast(
+      NewMember()
+        .name(name)
+        .typeFullName(typeFullName)
+        .order(order)
+        .code(s"$typeFullName $name")
     )
   }
 
@@ -222,8 +259,11 @@ class AstCreator(filename: String, global: Global) {
       typeDecl: TypeDeclaration[_],
       childNum: Int
   ) = {
-    val fullName = methodFullName(typeDecl, methodDeclaration)
-    val code     = methodDeclaration.getDeclarationAsString().trim
+    val fullName     = methodFullName(typeDecl, methodDeclaration)
+    val code         = methodDeclaration.getDeclarationAsString().trim
+    val columnNumber = methodDeclaration.getBegin.map(x => Integer.valueOf(x.column)).asScala
+    val endLine      = methodDeclaration.getEnd.map(x => Integer.valueOf(x.line)).asScala
+    val endColumn    = methodDeclaration.getEnd.map(x => Integer.valueOf(x.column)).asScala
     val methodNode = NewMethod()
       .name(methodDeclaration.getNameAsString)
       .fullName(fullName)
@@ -233,6 +273,9 @@ class AstCreator(filename: String, global: Global) {
       .order(childNum)
       .filename(filename)
       .lineNumber(line(methodDeclaration))
+      .columnNumber(columnNumber)
+      .lineNumberEnd(endLine)
+      .columnNumberEnd(endColumn)
     methodNode
   }
 
@@ -576,6 +619,7 @@ class AstCreator(filename: String, global: Global) {
             yield resolved.getParam(i).getType.describe()).mkString(",")})"
         callNode.methodFullName(s"${resolved.getQualifiedName}:$signature")
         callNode.signature(signature)
+        callNode.dispatchType(DispatchTypes.STATIC_DISPATCH)
       case Failure(exception) =>
 
     }
