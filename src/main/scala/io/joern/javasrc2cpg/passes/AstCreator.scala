@@ -498,6 +498,7 @@ class AstCreator(filename: String, global: Global) {
     val callNode = NewCall()
       .name(operatorName)
       .methodFullName(operatorName)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
       .code(stmt.toString)
       .argumentIndex(order)
       .order(order)
