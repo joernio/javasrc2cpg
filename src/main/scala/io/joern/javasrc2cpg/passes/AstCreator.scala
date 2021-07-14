@@ -86,6 +86,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewNamespaceBlock,
   NewNamespaceBlockBuilder,
   NewNode,
+  NewReturn,
   NewTypeDecl
 }
 import io.shiftleft.passes.DiffGraph
@@ -239,8 +240,8 @@ class AstCreator(filename: String, global: Global) {
     val lastOrder = 2 + parameterAsts.size
     Ast(methodNode)
       .withChildren(parameterAsts)
-      .withChild(astForMethodReturn(methodDeclaration))
       .withChild(astForMethodBody(methodDeclaration.getBody.asScala, lastOrder))
+      .withChild(astForMethodReturn(methodDeclaration))
   }
 
   private def astForMethodReturn(methodDeclaration: MethodDeclaration): Ast = {
@@ -333,8 +334,8 @@ class AstCreator(filename: String, global: Global) {
 
   def astForIf(stmt: IfStmt, order: Int): Ast = {
     val ifNode       = NewControlStructure(controlStructureType = ControlStructureTypes.IF, order = order)
-    val conditionAst = astsForExpression(stmt.getCondition, order = 0).headOption.getOrElse(Ast())
-    val stmtAsts     = astsForStatement(stmt.getThenStmt, order = 1)
+    val conditionAst = astsForExpression(stmt.getCondition, order = 1).headOption.getOrElse(Ast())
+    val stmtAsts     = astsForStatement(stmt.getThenStmt, order = 2)
 
     val ast = Ast(ifNode)
       .withChild(conditionAst)
@@ -465,7 +466,10 @@ class AstCreator(filename: String, global: Global) {
   private def astsForReturnNode(ret: ReturnStmt, order: Int): Seq[Ast] = {
     // TODO: Make return node with expression as children
     if (ret.getExpression.isPresent) {
-      astsForExpression(ret.getExpression.get(), order + 1)
+      Seq(
+        Ast(NewReturn().order(order))
+          .withChildren(astsForExpression(ret.getExpression.get(), order + 1))
+      )
     } else {
       Seq()
     }
@@ -498,6 +502,7 @@ class AstCreator(filename: String, global: Global) {
     val callNode = NewCall()
       .name(operatorName)
       .methodFullName(operatorName)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
       .code(stmt.toString)
       .argumentIndex(order)
       .order(order)

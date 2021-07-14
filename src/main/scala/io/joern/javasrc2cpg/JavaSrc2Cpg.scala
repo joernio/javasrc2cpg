@@ -3,7 +3,9 @@ package io.joern.javasrc2cpg
 import io.joern.javasrc2cpg.passes.AstCreationPass
 import io.shiftleft.codepropertygraph.Cpg
 import io.shiftleft.passes.IntervalKeyPool
-import io.shiftleft.semanticcpg.passes.FileCreationPass
+import io.shiftleft.semanticcpg.passes.cfgdominator.CfgDominatorPass
+import io.shiftleft.semanticcpg.passes.codepencegraph.CdgPass
+import io.shiftleft.semanticcpg.passes.{CfgCreationPass, FileCreationPass}
 import io.shiftleft.semanticcpg.passes.containsedges.ContainsEdgePass
 import io.shiftleft.semanticcpg.passes.languagespecific.fuzzyc.MethodStubCreator
 import io.shiftleft.semanticcpg.passes.linking.calllinker.StaticCallLinker
@@ -46,6 +48,8 @@ class JavaSrc2Cpg {
     val astCreator           = new AstCreationPass(sourceCodePath, sourceFileNames, cpg, methodKeyPool)
     astCreator.createAndApply()
 
+    new CfgCreationPass(cpg).createAndApply()
+
     new NamespaceCreator(cpg).createAndApply()
     new FileCreationPass(cpg).createAndApply()
 
@@ -59,6 +63,9 @@ class JavaSrc2Cpg {
     new MethodStubCreator(cpg).createAndApply()
     new MethodDecoratorPass(cpg).createAndApply()
     new StaticCallLinker(cpg).createAndApply()
+
+    new CfgDominatorPass(cpg).createAndApply()
+    new CdgPass(cpg).createAndApply()
     cpg
   }
 
