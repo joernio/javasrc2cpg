@@ -1,6 +1,5 @@
 name := "javasrc2cpg"
 organization := "io.joern"
-publish / skip := true
 
 scalaVersion := "2.13.6"
 
@@ -28,7 +27,7 @@ libraryDependencies ++= Seq(
 sonatypeCredentialHost := "s01.oss.sonatype.org"
 publishTo := sonatypePublishToBundle.value
 scmInfo := Some(ScmInfo(url("https://github.com/joernio/javasrc2cpg"),
-                                        "scm:git@github.com:joernio/javasrc2cpg.git"))
+                            "scm:git@github.com:joernio/javasrc2cpg.git"))
 homepage := Some(url("https://github.com/joernio/javasrc2cpg/"))
 licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0"))
 developers := List(
@@ -39,7 +38,6 @@ developers := List(
     url("https://github.com/fabsx00")
   )
 )
-publishMavenStyle := true
 
 enablePlugins(JavaAppPackaging, GitVersioning, BuildInfoPlugin)
 
