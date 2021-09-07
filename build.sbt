@@ -26,6 +26,7 @@ ThisBuild / libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest"                % scalatestVersion % Test
 )
 
+sonatypeCredentialHost := "s01.oss.sonatype.org"
 ThisBuild / publishTo := sonatypePublishToBundle.value
 ThisBuild / scmInfo := Some(ScmInfo(url("https://github.com/joernio/javasrc2cpg"),
                                         "scm:git@github.com:joernio/javasrc2cpg.git"))
