@@ -13,7 +13,7 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.{
 import org.slf4j.LoggerFactory
 
 import java.util.concurrent.ConcurrentHashMap
-import scala.compat.java8.OptionConverters.RichOptionalGeneric
+import scala.jdk.OptionConverters.RichOptional
 import scala.jdk.CollectionConverters._
 
 case class Global(

@@ -4,7 +4,6 @@ import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
 import io.shiftleft.codepropertygraph.generated.nodes
 import io.shiftleft.semanticcpg.language.NoResolve
 import io.shiftleft.semanticcpg.language._
-import org.scalatest.Ignore
 
 class CallTests extends JavaSrcCodeToCpgFixture {
 
