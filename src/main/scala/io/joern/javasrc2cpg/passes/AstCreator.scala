@@ -95,7 +95,7 @@ import io.shiftleft.x2cpg.Ast
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
-import scala.compat.java8.OptionConverters.RichOptionalGeneric
+import scala.jdk.OptionConverters.RichOptional
 import scala.util.{Failure, Success, Try}
 
 class AstCreator(filename: String, global: Global) {
