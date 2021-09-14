@@ -307,7 +307,7 @@ class AstCreator(filename: String, global: Global) {
 
   private def astsForStatement(statement: Statement, order: Int): Seq[Ast] = {
     statement match {
-      case x: AssertStmt                        => Seq(astForAssertStatement(x, order)) // TODO: translate to Call
+      case x: AssertStmt                        => Seq(astForAssertStatement(x, order))
       case x: BlockStmt                         => Seq(astForBlockStatement(x, order))
       case x: BreakStmt                         => Seq(astForBreakStatement(x, order))
       case x: ContinueStmt                      => Seq(astForContinueStatement(x, order))
@@ -456,7 +456,6 @@ class AstCreator(filename: String, global: Global) {
   }
 
   private def astForAssertStatement(stmt: AssertStmt, order: Int): Ast = {
-    // TODO: Is this sufficient for the AST?
     val callNode = NewCall()
       .name("assert")
       .methodFullName("assert")
@@ -531,7 +530,6 @@ class AstCreator(filename: String, global: Global) {
   }
 
   def astForArrayCreationExpr(expr: ArrayCreationExpr, order: Int): Ast = {
-    // TODO: Decide how to deal with this properly
     val name = "<operator>.arrayCreator"
     val callNode = NewCall()
       .name(name)
