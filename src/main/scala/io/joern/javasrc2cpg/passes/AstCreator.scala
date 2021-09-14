@@ -574,7 +574,6 @@ class AstCreator(filename: String, global: Global) {
     callAst(callNode, args)
   }
 
-
   def astForBinaryExpr(stmt: BinaryExpr, order: Int): Ast = {
     val operatorName = stmt.getOperator match {
       case BinaryExpr.Operator.OR                   => Operators.logicalOr
