@@ -10,6 +10,13 @@ class ControlStructureTests extends JavaSrcCodeToCpgFixture {
     """
       |class Foo {
       |
+      |int bar(boolean x, boolean y, boolean z) {
+      |  if (x || (y && z)) {
+      |    return 1;
+      |  }
+      |  return 2;
+      |}
+      |
       |void foo(int x, int y) {
       | try {
       | } catch(exc_t exc) {
@@ -71,6 +78,10 @@ class ControlStructureTests extends JavaSrcCodeToCpgFixture {
 
   "should identify `continue`" in {
     cpg.method.name("foo").continue.code.l shouldBe List("continue;")
+  }
+
+  "should handle complex boolean conditions" in {
+    cpg.method.name("bar").ifBlock.condition.code.l shouldBe List("x || (y && z)")
   }
 
 }
