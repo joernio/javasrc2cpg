@@ -20,22 +20,25 @@ class ArrayTests extends JavaSrcCodeToCpgFixture {
       |  public void bar() {
       |    int[][] x = new int[5][2];
       |  }
+      |
+      |  public void baz() {
+      |    int[] x = new int[2];
+      |    x[0] = 1;
+      |    x[1] = x[0] + 2;
+      |  }
       |}
       |""".stripMargin
 
   "should initialize array with constant initialization expression" in {
     def m = cpg.method(".*foo.*")
-    val List(assignment) = m.assignments.l
 
-    val arg1 = assignment.argument(1)
-    val arg2 = assignment.argument(2)
+    val List(arg1: Identifier, arg2: Call) = m.assignments.argument.l
 
-    arg1 shouldBe a[Identifier]
-    arg1.asInstanceOf[Identifier].code shouldBe "x"
-    arg1.asInstanceOf[Identifier].typeFullName shouldBe "int[]"
+    arg1.code shouldBe "x"
+    arg1.typeFullName shouldBe "int[]"
 
-    arg2 shouldBe a[Call]
     arg2.code shouldBe "{ 0, 1, 2 }"
+    arg2.methodFullName shouldBe "<operator>.arrayInitializer"
     arg2.astChildren.zipWithIndex.foreach { case (arg, idx) =>
       arg shouldBe a[Literal]
       arg.code shouldBe idx.toString
@@ -44,19 +47,41 @@ class ArrayTests extends JavaSrcCodeToCpgFixture {
 
   "should initialize an array with empty initialization expression" in {
     def m = cpg.method(".*bar.*")
-    val List(assignment) = m.assignments.l
 
-    val arg1 = assignment.argument(1)
-    val arg2 = assignment.argument(2)
+    val List(arg1: Identifier, arg2: Call) = m.assignments.argument.l
 
-    arg1 shouldBe a[Identifier]
-    arg1.asInstanceOf[Identifier].typeFullName shouldBe "int[][]"
+    arg1.typeFullName shouldBe "int[][]"
 
-    arg2 shouldBe a[Call]
     arg2.code shouldBe "new int[5][2]"
-    val lvl1 = arg2.asInstanceOf[Call].argument(1)
-    val lvl2 = arg2.asInstanceOf[Call].argument(2)
+    val List(lvl1: Literal, lvl2: Literal) = arg2.argument.l
     lvl1.code shouldBe "5"
     lvl2.code shouldBe "2"
+  }
+
+  "should handle arrayIndexAccesses correctly" in {
+    def m = cpg.method(".*baz.*")
+
+    val List(_, lhsAccess, rhsAccess) = m.assignments.l
+
+    withClue("indexAccess on LHS of assignment") {
+      val List(indexAccess: Call, _: Literal) = lhsAccess.argument.l
+      indexAccess.name shouldBe Operators.indexAccess
+      indexAccess.methodFullName shouldBe Operators.indexAccess
+      indexAccess.argument.foreach(println)
+      val List(arg1: Identifier, arg2: Literal) = indexAccess.argument.l
+      arg1.code shouldBe "x"
+      arg1.name shouldBe "x"
+      arg1.typeFullName shouldBe "int[]"
+      arg2.code shouldBe "0"
+    }
+
+    withClue("indexAccess in expr on RHS of assignment") {
+      val List(_, add: Call) = rhsAccess.argument.l
+      val List(access: Call, _: Literal) = add.argument.l
+      val List(identifier: Identifier, index: Literal) = access.argument.l
+      identifier.name shouldBe "x"
+      identifier.typeFullName shouldBe "int[]"
+      index.code shouldBe "0"
+    }
   }
 }

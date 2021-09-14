@@ -526,13 +526,13 @@ class AstCreator(filename: String, global: Global) {
       .columnNumber(column(expr))
       .build
 
-    val args = astsForExpression(expr.getIndex, 1)
+    val args = astsForExpression(expr.getName, 1) ++ astsForExpression(expr.getIndex, 2)
     callAst(callNode, args)
   }
 
   def astForArrayCreationExpr(expr: ArrayCreationExpr, order: Int): Ast = {
     // TODO: Decide how to deal with this properly
-    val name = "arrayCreation"
+    val name = "<operator>.arrayCreator"
     val callNode = NewCall()
       .name(name)
       .dispatchType(DispatchTypes.STATIC_DISPATCH)
@@ -560,12 +560,12 @@ class AstCreator(filename: String, global: Global) {
 
   def astForArrayInitializerExpr(expr: ArrayInitializerExpr, order: Int): Ast = {
     val callNode = NewCall()
-      .name("arrayInitializer")
+      .name("<operator>.arrayInitializer")
       .dispatchType(DispatchTypes.STATIC_DISPATCH)
       .code(expr.toString)
       .order(order)
       .argumentIndex(order)
-      .methodFullName("arrayInitializer")
+      .methodFullName("<operator>.arrayInitializer")
       .lineNumber(line(expr))
       .columnNumber(column(expr))
       .build
@@ -573,6 +573,7 @@ class AstCreator(filename: String, global: Global) {
     val args = expr.getValues.asScala.flatMap(node => astsForExpression(node, 1)).toSeq
     callAst(callNode, args)
   }
+
 
   def astForBinaryExpr(stmt: BinaryExpr, order: Int): Ast = {
     val operatorName = stmt.getOperator match {
@@ -607,6 +608,21 @@ class AstCreator(filename: String, global: Global) {
       .order(order)
 
     val args = astsForExpression(stmt.getLeft, 1) ++ astsForExpression(stmt.getRight, 2)
+    callAst(callNode, args)
+  }
+
+  def astForAssignExpr(expr: AssignExpr, order: Int): Ast = {
+    def callNode = NewCall()
+      .name(Operators.assignment)
+      .methodFullName(Operators.assignment)
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
+      .code(expr.toString)
+      .argumentIndex(order)
+      .order(order)
+      .build
+
+    val args = astsForExpression(expr.getTarget, 1) ++ astsForExpression(expr.getValue, 2)
     callAst(callNode, args)
   }
 
@@ -691,7 +707,7 @@ class AstCreator(filename: String, global: Global) {
       case x: ArrayAccessExpr         => Seq(astForArrayAccessExpr(x, order))
       case x: ArrayCreationExpr       => Seq(astForArrayCreationExpr(x, order))
       case x: ArrayInitializerExpr    => Seq(astForArrayInitializerExpr(x, order))
-      case x: AssignExpr              => Seq()
+      case x: AssignExpr              => Seq(astForAssignExpr(x, order))
       case x: BinaryExpr              => Seq(astForBinaryExpr(x, order))
       case x: CastExpr                => Seq()
       case x: ClassExpr               => Seq()
