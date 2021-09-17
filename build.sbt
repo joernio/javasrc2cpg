@@ -3,7 +3,7 @@ organization := "io.joern"
 
 scalaVersion := "2.13.6"
 
-val cpgVersion       = "1.3.314"
+val cpgVersion       = "1.3.322"
 val scalatestVersion = "3.1.1"
 
 Test / fork := true

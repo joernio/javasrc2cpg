@@ -11,6 +11,7 @@ import com.github.javaparser.ast.expr.{
   AnnotationExpr,
   ArrayAccessExpr,
   ArrayInitializerExpr,
+  ArrayCreationExpr,
   AssignExpr,
   BinaryExpr,
   CastExpr,
@@ -306,7 +307,7 @@ class AstCreator(filename: String, global: Global) {
 
   private def astsForStatement(statement: Statement, order: Int): Seq[Ast] = {
     statement match {
-      case x: AssertStmt                        => Seq() // TODO: translate to Call
+      case x: AssertStmt                        => Seq(astForAssertStatement(x, order))
       case x: BlockStmt                         => Seq(astForBlockStatement(x, order))
       case x: BreakStmt                         => Seq(astForBreakStatement(x, order))
       case x: ContinueStmt                      => Seq(astForContinueStatement(x, order))
@@ -454,6 +455,19 @@ class AstCreator(filename: String, global: Global) {
     labelNodes.map(x => Ast(x)) ++ statementAsts
   }
 
+  private def astForAssertStatement(stmt: AssertStmt, order: Int): Ast = {
+    val callNode = NewCall()
+      .name("assert")
+      .methodFullName("assert")
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .code(stmt.toString)
+      .argumentIndex(order)
+      .order(order)
+
+    val args = astsForExpression(stmt.getCheck, 1)
+    callAst(callNode, args)
+  }
+
   private def astForBlockStatement(stmt: BlockStmt, order: Int): Ast = {
     val block = NewBlock(order = order, lineNumber = line(stmt), columnNumber = column(stmt))
     Ast(block).withChildren(
@@ -473,6 +487,89 @@ class AstCreator(filename: String, global: Global) {
     } else {
       Seq()
     }
+  }
+
+  def astForUnaryExpr(stmt: UnaryExpr, order: Int): Ast = {
+    val operatorName = stmt.getOperator match {
+      case UnaryExpr.Operator.LOGICAL_COMPLEMENT => Operators.logicalNot
+      case UnaryExpr.Operator.POSTFIX_DECREMENT  => Operators.postDecrement
+      case UnaryExpr.Operator.POSTFIX_INCREMENT  => Operators.postIncrement
+      case UnaryExpr.Operator.PREFIX_DECREMENT   => Operators.preDecrement
+      case UnaryExpr.Operator.PREFIX_INCREMENT   => Operators.preIncrement
+      case UnaryExpr.Operator.BITWISE_COMPLEMENT => Operators.not
+      case UnaryExpr.Operator.PLUS               => Operators.plus
+      case UnaryExpr.Operator.MINUS              => Operators.minus
+    }
+
+    val callNode = NewCall()
+      .name(operatorName)
+      .methodFullName(operatorName)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .code(stmt.toString)
+      .argumentIndex(order)
+      .order(order)
+
+    val args = astsForExpression(stmt.getExpression, 1)
+    callAst(callNode, args)
+  }
+
+  def astForArrayAccessExpr(expr: ArrayAccessExpr, order: Int): Ast = {
+    val callNode = NewCall()
+      .name(Operators.indexAccess)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .code(expr.toString)
+      .order(order)
+      .argumentIndex(order)
+      .methodFullName(Operators.indexAccess)
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
+      .build
+
+    val args = astsForExpression(expr.getName, 1) ++ astsForExpression(expr.getIndex, 2)
+    callAst(callNode, args)
+  }
+
+  def astForArrayCreationExpr(expr: ArrayCreationExpr, order: Int): Ast = {
+    val name = "<operator>.arrayCreator"
+    val callNode = NewCall()
+      .name(name)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .code(expr.toString)
+      .order(order)
+      .argumentIndex(order)
+      .methodFullName(name)
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
+      .build
+
+    val levelAsts = expr.getLevels.asScala.zipWithIndex.flatMap { case (lvl, idx) =>
+      lvl.getDimension.asScala match {
+        case Some(dimension) => astsForExpression(dimension, idx + 1)
+
+        case None => Seq.empty
+      }
+    }
+
+    val initializerAst =
+      expr.getInitializer.asScala.map(astForArrayInitializerExpr(_, expr.getLevels.size() + 1))
+
+    callAst(callNode, (levelAsts ++ initializerAst).toSeq)
+  }
+
+  def astForArrayInitializerExpr(expr: ArrayInitializerExpr, order: Int): Ast = {
+    val callNode = NewCall()
+      .name("<operator>.arrayInitializer")
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .code(expr.toString)
+      .order(order)
+      .argumentIndex(order)
+      .methodFullName("<operator>.arrayInitializer")
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
+      .build
+
+    val args = expr.getValues.asScala.flatMap(node => astsForExpression(node, 1)).toSeq
+    callAst(callNode, args)
   }
 
   def astForBinaryExpr(stmt: BinaryExpr, order: Int): Ast = {
@@ -507,7 +604,22 @@ class AstCreator(filename: String, global: Global) {
       .argumentIndex(order)
       .order(order)
 
-    val args = astsForExpression(stmt.getLeft, 0) ++ astsForExpression(stmt.getRight, 1)
+    val args = astsForExpression(stmt.getLeft, 1) ++ astsForExpression(stmt.getRight, 2)
+    callAst(callNode, args)
+  }
+
+  def astForAssignExpr(expr: AssignExpr, order: Int): Ast = {
+    def callNode = NewCall()
+      .name(Operators.assignment)
+      .methodFullName(Operators.assignment)
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
+      .code(expr.toString)
+      .argumentIndex(order)
+      .order(order)
+      .build
+
+    val args = astsForExpression(expr.getTarget, 1) ++ astsForExpression(expr.getValue, 2)
     callAst(callNode, args)
   }
 
@@ -518,8 +630,15 @@ class AstCreator(filename: String, global: Global) {
       val typeFullName = registerType(v.getType.resolve().describe())
 
       val initializerAst = v.getInitializer.asScala.zipWithIndex.map { case (initializer, i) =>
-        val code                    = s"$name = ${initializer.toString}"
-        val initializerTypeFullName = registerType(initializer.calculateResolvedType().describe())
+        val code = s"$name = ${initializer.toString}"
+        val initializerTypeFullName =
+          try {
+            registerType(initializer.calculateResolvedType().describe())
+          } catch {
+            case _: Throwable =>
+              registerType(v.getType.resolve().describe())
+          }
+
         val identifier = NewIdentifier()
           .name(name)
           .order(1)
@@ -562,6 +681,10 @@ class AstCreator(filename: String, global: Global) {
     Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("double"))
   }
 
+  def astForEnclosedExpression(expr: EnclosedExpr, order: Int): Seq[Ast] = {
+    astsForExpression(expr.getInner, order)
+  }
+
   def astForNameExpr(x: NameExpr, order: Int): Ast = {
     val name         = x.getName.toString
     val typeFullName = registerType(x.resolve().getType.describe())
@@ -578,15 +701,16 @@ class AstCreator(filename: String, global: Global) {
   private def astsForExpression(expression: Expression, order: Int): Seq[Ast] = {
     expression match {
       case x: AnnotationExpr          => Seq()
-      case x: ArrayAccessExpr         => Seq()
-      case x: ArrayInitializerExpr    => Seq()
-      case x: AssignExpr              => Seq()
+      case x: ArrayAccessExpr         => Seq(astForArrayAccessExpr(x, order))
+      case x: ArrayCreationExpr       => Seq(astForArrayCreationExpr(x, order))
+      case x: ArrayInitializerExpr    => Seq(astForArrayInitializerExpr(x, order))
+      case x: AssignExpr              => Seq(astForAssignExpr(x, order))
       case x: BinaryExpr              => Seq(astForBinaryExpr(x, order))
       case x: CastExpr                => Seq()
       case x: ClassExpr               => Seq()
       case x: ConditionalExpr         => Seq()
       case x: DoubleLiteralExpr       => Seq(astForDoubleLiteral(x, order))
-      case x: EnclosedExpr            => Seq()
+      case x: EnclosedExpr            => astForEnclosedExpression(x, order)
       case x: FieldAccessExpr         => Seq()
       case x: IntegerLiteralExpr      => Seq(astForIntegerLiteral(x, order))
       case x: InstanceOfExpr          => Seq()
@@ -601,9 +725,8 @@ class AstCreator(filename: String, global: Global) {
       case x: SwitchExpr              => Seq()
       case x: ThisExpr                => Seq()
       case x: TypeExpr                => Seq()
-      case x: UnaryExpr               => Seq()
+      case x: UnaryExpr               => Seq(astForUnaryExpr(x, order))
       case x: VariableDeclarationExpr => astForVariableDecl(x, order)
-      case _                          => Seq()
     }
   }
 
