@@ -568,8 +568,30 @@ class AstCreator(filename: String, global: Global) {
       .columnNumber(column(expr))
       .build
 
-    val args = expr.getValues.asScala.flatMap(node => astsForExpression(node, 1)).toSeq
-    callAst(callNode, args)
+    val MAX_INITIALIZERS = 1000
+
+    val args = expr.getValues.asScala
+      .slice(0, MAX_INITIALIZERS)
+      .zipWithIndex
+      .flatMap { case (c, o) =>
+        astsForExpression(c, o)
+      }
+      .toSeq
+
+    val ast = callAst(callNode, args)
+
+    if (expr.getValues.size() > MAX_INITIALIZERS) {
+      val placeholder = NewLiteral()
+        .typeFullName("ANY")
+        .code("<too-many-initializers>")
+        .order(MAX_INITIALIZERS)
+        .argumentIndex(MAX_INITIALIZERS)
+        .lineNumber(line(expr))
+        .columnNumber(column(expr))
+      ast.withChild(Ast(placeholder)).withArgEdge(callNode, placeholder)
+    } else {
+      ast
+    }
   }
 
   def astForBinaryExpr(stmt: BinaryExpr, order: Int): Ast = {
