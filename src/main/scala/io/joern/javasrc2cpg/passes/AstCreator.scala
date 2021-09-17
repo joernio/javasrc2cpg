@@ -313,9 +313,9 @@ class AstCreator(filename: String, global: Global) {
       case x: ContinueStmt                      => Seq(astForContinueStatement(x, order))
       case x: DoStmt                            => Seq(astForDo(x, order))
       case x: EmptyStmt                         => Seq()
-      case x: ExplicitConstructorInvocationStmt => Seq()                                // TODO: translate to Call
+      case x: ExplicitConstructorInvocationStmt => Seq() // TODO: translate to Call
       case x: ExpressionStmt                    => astsForExpression(x.getExpression, order)
-      case x: ForEachStmt                       => Seq()                                // TODO: translate to For
+      case x: ForEachStmt                       => Seq() // TODO: translate to For
       case x: ForStmt                           => Seq(astForFor(x, order))
       case x: IfStmt                            => Seq(astForIf(x, order))
       case x: LabeledStmt                       => astsForLabeledStatement(x, order)
