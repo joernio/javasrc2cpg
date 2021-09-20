@@ -315,7 +315,7 @@ class AstCreator(filename: String, global: Global) {
       case x: EmptyStmt                         => Seq()
       case x: ExplicitConstructorInvocationStmt => Seq() // TODO: translate to Call
       case x: ExpressionStmt                    => astsForExpression(x.getExpression, order)
-      case x: ForEachStmt                       => Seq() // TODO: translate to For
+      case x: ForEachStmt                       => Seq(astForForEach(x, order))
       case x: ForStmt                           => Seq(astForFor(x, order))
       case x: IfStmt                            => Seq(astForIf(x, order))
       case x: LabeledStmt                       => astsForLabeledStatement(x, order)
@@ -432,6 +432,15 @@ class AstCreator(filename: String, global: Global) {
         ast.withConditionEdge(forNode, c)
       case None => ast
     }
+  }
+
+  def astForForEach(stmt: ForEachStmt, order: Int): Ast = {
+    val forNode = NewControlStructure(controlStructureType = ControlStructureTypes.FOR, order = order)
+    val iterableAsts = astsForExpression(stmt.getIterable, 1)
+    val variableAsts = astForVariableDecl(stmt.getVariable, order)
+    val bodyAst = astsForStatement(stmt.getBody, iterableAsts.size + variableAsts.size + 1);
+
+    Ast(forNode).withChildren(iterableAsts).withChildren(variableAsts).withChildren(bodyAst)
   }
 
   def astForSwitchStatement(stmt: SwitchStmt, order: Int): Ast = {
