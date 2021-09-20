@@ -681,6 +681,22 @@ class AstCreator(filename: String, global: Global) {
     Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("double"))
   }
 
+  def astForConditionalExpr(expr: ConditionalExpr, order: Int): Ast = {
+    val callNode = NewCall()
+      .name(Operators.conditional)
+      .methodFullName(Operators.conditional)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .code(expr.toString)
+      .argumentIndex(order)
+      .order(order)
+
+    val condAst = astsForExpression(expr.getCondition, 1)
+    val thenAst = astsForExpression(expr.getThenExpr, 2)
+    val elseAst = astsForExpression(expr.getElseExpr, 3)
+
+    callAst(callNode, condAst ++ thenAst ++ elseAst)
+  }
+
   def astForEnclosedExpression(expr: EnclosedExpr, order: Int): Seq[Ast] = {
     astsForExpression(expr.getInner, order)
   }
@@ -708,7 +724,7 @@ class AstCreator(filename: String, global: Global) {
       case x: BinaryExpr              => Seq(astForBinaryExpr(x, order))
       case x: CastExpr                => Seq()
       case x: ClassExpr               => Seq()
-      case x: ConditionalExpr         => Seq()
+      case x: ConditionalExpr         => Seq(astForConditionalExpr(x, order))
       case x: DoubleLiteralExpr       => Seq(astForDoubleLiteral(x, order))
       case x: EnclosedExpr            => astForEnclosedExpression(x, order)
       case x: FieldAccessExpr         => Seq()
