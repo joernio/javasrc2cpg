@@ -24,12 +24,12 @@ class ConditionalTests extends JavaSrcCodeToCpgFixture {
     val List(condition: Call, thenExpr: Literal, elseExpr: Call) = ternaryExpr.argument.l
 
     condition.code shouldBe "x > 5"
-    condition.methodFullName shouldBe "<operator>.greaterThan"
+    condition.methodFullName shouldBe Operators.greaterThan
 
     thenExpr.code shouldBe "10"
     thenExpr.typeFullName shouldBe "int"
 
     elseExpr.code shouldBe "2 + 20"
-    elseExpr.methodFullName shouldBe "<operator>.addition"
+    elseExpr.methodFullName shouldBe Operators.addition
   }
 }

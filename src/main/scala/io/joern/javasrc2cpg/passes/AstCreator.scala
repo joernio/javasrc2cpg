@@ -729,6 +729,8 @@ class AstCreator(filename: String, global: Global) {
       .code(expr.toString)
       .argumentIndex(order)
       .order(order)
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
 
     val condAst = astsForExpression(expr.getCondition, 1)
     val thenAst = astsForExpression(expr.getThenExpr, 2)
@@ -749,6 +751,8 @@ class AstCreator(filename: String, global: Global) {
       .code(expr.toString)
       .argumentIndex(order)
       .order(order)
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
 
     val fieldIdentifier = expr.getName
     val identifierAsts  = astsForExpression(expr.getScope, 1)
