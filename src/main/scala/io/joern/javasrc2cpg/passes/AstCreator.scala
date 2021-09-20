@@ -10,8 +10,8 @@ import com.github.javaparser.ast.body.{
 import com.github.javaparser.ast.expr.{
   AnnotationExpr,
   ArrayAccessExpr,
-  ArrayInitializerExpr,
   ArrayCreationExpr,
+  ArrayInitializerExpr,
   AssignExpr,
   BinaryExpr,
   CastExpr,
@@ -30,6 +30,7 @@ import com.github.javaparser.ast.expr.{
   NameExpr,
   ObjectCreationExpr,
   PatternExpr,
+  SimpleName,
   SuperExpr,
   SwitchExpr,
   ThisExpr,
@@ -74,6 +75,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewBlock,
   NewCall,
   NewControlStructure,
+  NewFieldIdentifier,
   NewFile,
   NewIdentifier,
   NewIdentifierBuilder,
@@ -435,10 +437,11 @@ class AstCreator(filename: String, global: Global) {
   }
 
   def astForForEach(stmt: ForEachStmt, order: Int): Ast = {
-    val forNode = NewControlStructure(controlStructureType = ControlStructureTypes.FOR, order = order)
+    val forNode =
+      NewControlStructure(controlStructureType = ControlStructureTypes.FOR, order = order)
     val iterableAsts = astsForExpression(stmt.getIterable, 1)
     val variableAsts = astForVariableDecl(stmt.getVariable, order)
-    val bodyAst = astsForStatement(stmt.getBody, iterableAsts.size + variableAsts.size + 1);
+    val bodyAst      = astsForStatement(stmt.getBody, iterableAsts.size + variableAsts.size + 1);
 
     Ast(forNode).withChildren(iterableAsts).withChildren(variableAsts).withChildren(bodyAst)
   }
@@ -690,6 +693,34 @@ class AstCreator(filename: String, global: Global) {
     Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("double"))
   }
 
+  def astForClassExpr(expr: ClassExpr, order: Int): Ast = {
+    val callNode = NewCall()
+      .name(Operators.fieldAccess)
+      .methodFullName(Operators.fieldAccess)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .code(expr.toString)
+      .argumentIndex(order)
+      .order(order)
+
+    val identifer = NewIdentifier()
+      .typeFullName("ANY")
+      .code(expr.getTypeAsString)
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
+      .argumentIndex(1)
+      .order(1)
+
+    val fieldIdentifier = NewFieldIdentifier()
+      .canonicalName("class")
+      .code("class")
+      .lineNumber(line(expr))
+      .columnNumber(column(expr))
+      .argumentIndex(2)
+      .order(2)
+
+    callAst(callNode, Seq(Ast(identifer), Ast(fieldIdentifier)))
+  }
+
   def astForConditionalExpr(expr: ConditionalExpr, order: Int): Ast = {
     val callNode = NewCall()
       .name(Operators.conditional)
@@ -710,9 +741,38 @@ class AstCreator(filename: String, global: Global) {
     astsForExpression(expr.getInner, order)
   }
 
+  def astForFieldAccessExpr(expr: FieldAccessExpr, order: Int): Ast = {
+    val callNode = NewCall()
+      .name(Operators.fieldAccess)
+      .methodFullName(Operators.fieldAccess)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .code(expr.toString)
+      .argumentIndex(order)
+      .order(order)
+
+    val fieldIdentifier = expr.getName
+    val identifierAsts  = astsForExpression(expr.getScope, 1)
+    val fieldIdentifierAsts = NewFieldIdentifier()
+      .canonicalName(fieldIdentifier.toString)
+      .argumentIndex(2)
+      .order(2)
+      .lineNumber(line(fieldIdentifier))
+      .columnNumber(column(fieldIdentifier))
+      .code(fieldIdentifier.toString)
+
+    callAst(callNode, Seq(Ast(fieldIdentifierAsts)) ++ identifierAsts)
+  }
+
   def astForNameExpr(x: NameExpr, order: Int): Ast = {
-    val name         = x.getName.toString
-    val typeFullName = registerType(x.resolve().getType.describe())
+    val name = x.getName.toString
+    val typeFullName =
+      try {
+        registerType(x.resolve().getType.describe())
+      } catch {
+        case _: Throwable =>
+          // TODO: This is a hack to deal with static field accesses. Need to figure out how to deal with this properly.
+          registerType(s"class ${x.getName.toString}")
+      }
     Ast(
       NewIdentifier()
         .name(name)
@@ -732,11 +792,11 @@ class AstCreator(filename: String, global: Global) {
       case x: AssignExpr              => Seq(astForAssignExpr(x, order))
       case x: BinaryExpr              => Seq(astForBinaryExpr(x, order))
       case x: CastExpr                => Seq()
-      case x: ClassExpr               => Seq()
+      case x: ClassExpr               => Seq(astForClassExpr(x, order))
       case x: ConditionalExpr         => Seq(astForConditionalExpr(x, order))
       case x: DoubleLiteralExpr       => Seq(astForDoubleLiteral(x, order))
       case x: EnclosedExpr            => astForEnclosedExpression(x, order)
-      case x: FieldAccessExpr         => Seq()
+      case x: FieldAccessExpr         => Seq(astForFieldAccessExpr(x, order))
       case x: IntegerLiteralExpr      => Seq(astForIntegerLiteral(x, order))
       case x: InstanceOfExpr          => Seq()
       case x: LambdaExpr              => Seq()

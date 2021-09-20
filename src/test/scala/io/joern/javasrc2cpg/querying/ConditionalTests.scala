@@ -1,9 +1,8 @@
 package io.joern.javasrc2cpg.querying
 
-import com.github.javaparser.ast.expr.EnclosedExpr
 import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
 import io.shiftleft.codepropertygraph.generated.Operators
-import io.shiftleft.codepropertygraph.generated.nodes.{Call, Identifier, Literal}
+import io.shiftleft.codepropertygraph.generated.nodes.{Call, Literal}
 import io.shiftleft.semanticcpg.language._
 
 class ConditionalTests extends JavaSrcCodeToCpgFixture {
