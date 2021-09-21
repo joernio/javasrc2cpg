@@ -23,6 +23,7 @@ class BooleanOperationsTests extends JavaSrcCodeToCpgFixture {
       |     boolean h = c || d;
       |     boolean i = !h;
       |     boolean j = a && (b || c);
+      |     boolean k = true;
       |   }
       | }
       |""".stripMargin
@@ -38,11 +39,12 @@ class BooleanOperationsTests extends JavaSrcCodeToCpgFixture {
     ("h", "boolean"),
     ("i", "boolean"),
     ("j", "boolean"),
+    ("k", "boolean")
   )
 
   "should contain call nodes with <operation>.assignment for all variables" in {
     val assignments = cpg.assignment.map(x => (x.target.code, x.typeFullName)).l
-    assignments.size shouldBe 10
+    assignments.size shouldBe vars.size
     vars.foreach(x => {
       assignments contains x shouldBe true
     })

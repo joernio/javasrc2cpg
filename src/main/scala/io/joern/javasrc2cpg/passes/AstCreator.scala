@@ -14,7 +14,9 @@ import com.github.javaparser.ast.expr.{
   ArrayInitializerExpr,
   AssignExpr,
   BinaryExpr,
+  BooleanLiteralExpr,
   CastExpr,
+  CharLiteralExpr,
   ClassExpr,
   ConditionalExpr,
   DoubleLiteralExpr,
@@ -25,19 +27,28 @@ import com.github.javaparser.ast.expr.{
   IntegerLiteralExpr,
   LambdaExpr,
   LiteralExpr,
+  LiteralStringValueExpr,
+  LongLiteralExpr,
+  MarkerAnnotationExpr,
+  MemberValuePair,
   MethodCallExpr,
   MethodReferenceExpr,
   NameExpr,
+  NormalAnnotationExpr,
+  NullLiteralExpr,
   ObjectCreationExpr,
   PatternExpr,
   SimpleName,
+  StringLiteralExpr,
   SuperExpr,
   SwitchExpr,
+  TextBlockLiteralExpr,
   ThisExpr,
   TypeExpr,
   UnaryExpr,
   VariableDeclarationExpr
 }
+import com.github.javaparser.ast.nodeTypes.NodeWithType
 import com.github.javaparser.ast.stmt.{
   AssertStmt,
   BlockStmt,
@@ -90,7 +101,8 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewNamespaceBlockBuilder,
   NewNode,
   NewReturn,
-  NewTypeDecl
+  NewTypeDecl,
+  NewUnknown
 }
 import io.shiftleft.passes.DiffGraph
 import io.shiftleft.semanticcpg.language.types.structure.NamespaceTraversal.globalNamespaceName
@@ -659,9 +671,14 @@ class AstCreator(filename: String, global: Global) {
 
   def astForVariableDecl(x: VariableDeclarationExpr, order: Int): Seq[Ast] = {
     x.getVariables.asScala.toList.flatMap { v =>
-      val name         = v.getName.toString
-      val code         = v.getType + " " + v.getName.toString
-      val typeFullName = registerType(v.getType.resolve().describe())
+      val name = v.getName.toString
+      val code = v.getType + " " + v.getName.toString
+      val typeFullName =
+        try {
+          registerType(v.getType.resolve().describe())
+        } catch {
+          case _: Throwable => registerType("<empty>")
+        }
 
       val initializerAst = v.getInitializer.asScala.zipWithIndex.map { case (initializer, i) =>
         val code = s"$name = ${initializer.toString}"
@@ -670,7 +687,11 @@ class AstCreator(filename: String, global: Global) {
             registerType(initializer.calculateResolvedType().describe())
           } catch {
             case _: Throwable =>
-              registerType(v.getType.resolve().describe())
+              try {
+                registerType(v.getType.resolve().describe())
+              } catch {
+                case _: Throwable => registerType("<empty>")
+              }
           }
 
         val identifier = NewIdentifier()
@@ -679,6 +700,7 @@ class AstCreator(filename: String, global: Global) {
           .argumentIndex(1)
           .code(name)
           .typeFullName(initializerTypeFullName)
+
         val assignment = NewCall()
           .name(Operators.assignment)
           .code(code)
@@ -703,16 +725,6 @@ class AstCreator(filename: String, global: Global) {
     Ast(rootNode)
       .withChildren(args)
       .withArgEdges(rootNode, args.flatMap(_.root))
-  }
-
-  def astForIntegerLiteral(x: IntegerLiteralExpr, order: Int): Ast = {
-    registerType("int")
-    Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("int"))
-  }
-
-  def astForDoubleLiteral(x: DoubleLiteralExpr, order: Int): Ast = {
-    registerType("double")
-    Ast(NewLiteral().order(order).argumentIndex(order).code(x.toString).typeFullName("double"))
   }
 
   def astForClassExpr(expr: ClassExpr, order: Int): Ast = {
@@ -809,6 +821,23 @@ class AstCreator(filename: String, global: Global) {
     )
   }
 
+  def astForObjectCreationExpr(expr: ObjectCreationExpr, order: Int): Ast = {
+    // TODO: Decide on a final name for this.
+    val name = s"<constructor>.${expr.getTypeAsString}"
+    val callNode = NewCall()
+      .name(name)
+      .methodFullName(name)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+      .order(order)
+      .argumentIndex(order)
+
+    val args = withOrder(expr.getArguments) { case (x, o) =>
+      astsForExpression(x, o)
+    }.flatten
+
+    callAst(callNode, args)
+  }
+
   private def astsForExpression(expression: Expression, order: Int): Seq[Ast] = {
     expression match {
       case x: AnnotationExpr          => Seq()
@@ -820,17 +849,15 @@ class AstCreator(filename: String, global: Global) {
       case x: CastExpr                => Seq()
       case x: ClassExpr               => Seq(astForClassExpr(x, order))
       case x: ConditionalExpr         => Seq(astForConditionalExpr(x, order))
-      case x: DoubleLiteralExpr       => Seq(astForDoubleLiteral(x, order))
       case x: EnclosedExpr            => astForEnclosedExpression(x, order)
       case x: FieldAccessExpr         => Seq(astForFieldAccessExpr(x, order))
-      case x: IntegerLiteralExpr      => Seq(astForIntegerLiteral(x, order))
       case x: InstanceOfExpr          => Seq()
       case x: LambdaExpr              => Seq()
-      case x: LiteralExpr             => Seq()
+      case x: LiteralExpr             => Seq(astForLiteralExpr(x, order))
       case x: MethodCallExpr          => Seq(astForMethodCall(x, order))
       case x: MethodReferenceExpr     => Seq()
       case x: NameExpr                => Seq(astForNameExpr(x, order))
-      case x: ObjectCreationExpr      => Seq()
+      case x: ObjectCreationExpr      => Seq(astForObjectCreationExpr(x, order))
       case x: PatternExpr             => Seq()
       case x: SuperExpr               => Seq()
       case x: SwitchExpr              => Seq()
@@ -883,6 +910,25 @@ class AstCreator(filename: String, global: Global) {
           .order(0)
           .argumentIndex(0)
       }
+  }
+
+  private def astForLiteralExpr(expr: LiteralExpr, order: Int = 1): Ast = {
+    val literalType = expr match {
+      case x: BooleanLiteralExpr   => "boolean"
+      case x: CharLiteralExpr      => "char"
+      case x: DoubleLiteralExpr    => "double"
+      case x: IntegerLiteralExpr   => "int"
+      case x: LongLiteralExpr      => "long"
+      case x: NullLiteralExpr      => "null"
+      case x: StringLiteralExpr    => "java.lang.String"
+      case x: TextBlockLiteralExpr => "java.lang.String"
+      case _                       => "<empty>"
+    }
+
+    registerType(literalType)
+    Ast(
+      NewLiteral().order(order).argumentIndex(order).code(expr.toString).typeFullName(literalType)
+    )
   }
 
   private def astForMethodCall(call: MethodCallExpr, order: Int = 1): Ast = {
