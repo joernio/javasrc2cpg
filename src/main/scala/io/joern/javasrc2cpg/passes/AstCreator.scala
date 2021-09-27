@@ -75,7 +75,9 @@ import com.github.javaparser.ast.stmt.{
   WhileStmt,
   YieldStmt
 }
+import com.github.javaparser.resolution.Resolvable
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration
+import com.github.javaparser.resolution.types.ResolvedType
 import io.shiftleft.codepropertygraph.generated.{
   ControlStructureTypes,
   DispatchTypes,
@@ -232,7 +234,7 @@ class AstCreator(filename: String, global: Global) {
   }
 
   private def astForVariableDeclarator(v: VariableDeclarator, order: Int): Ast = {
-    val typeFullName = registerType(v.getType.resolve().describe())
+    val typeFullName = registerType(tryResolveType(v))
     val name         = v.getName.toString
     Ast(
       NewMember()
@@ -260,7 +262,7 @@ class AstCreator(filename: String, global: Global) {
   }
 
   private def astForMethodReturn(methodDeclaration: MethodDeclaration): Ast = {
-    val typeFullName = registerType(methodDeclaration.getType.resolve().describe())
+    val typeFullName = registerType(tryResolveType(methodDeclaration))
     val methodReturnNode =
       NewMethodReturn()
         .order(methodDeclaration.getParameters.size + 2)
@@ -340,7 +342,7 @@ class AstCreator(filename: String, global: Global) {
       case x: SynchronizedStmt                  => Seq()
       case x: ThrowStmt                         => Seq()
       case x: TryStmt                           => Seq(astForTry(x, order))
-      case x: UnparsableStmt                    => Seq()
+      case x: UnparsableStmt                    => Seq() // TODO: log a warning
       case x: WhileStmt                         => Seq(astForWhile(x, order))
       case x: YieldStmt                         => Seq()
       case _                                    => Seq()
@@ -675,7 +677,7 @@ class AstCreator(filename: String, global: Global) {
       val code = v.getType + " " + v.getName.toString
       val typeFullName =
         try {
-          registerType(v.getType.resolve().describe())
+          registerType(tryResolveType(v))
         } catch {
           case _: Throwable => registerType("<empty>")
         }
@@ -688,7 +690,7 @@ class AstCreator(filename: String, global: Global) {
           } catch {
             case _: Throwable =>
               try {
-                registerType(v.getType.resolve().describe())
+                registerType(tryResolveType(v))
               } catch {
                 case _: Throwable => registerType("<empty>")
               }
@@ -950,8 +952,17 @@ class AstCreator(filename: String, global: Global) {
       .withArgEdges(callNode, argAsts.flatMap(_.root))
   }
 
+  private def tryResolveType(node: NodeWithType[_, _ <: Resolvable[ResolvedType]]): String = {
+    try {
+      node.getType.resolve().describe()
+    } catch {
+      case _: Throwable =>
+        s"<unresolved>.${node.getType}"
+    }
+  }
+
   private def astForParameter(parameter: Parameter, childNum: Int): Ast = {
-    val typeFullName = registerType(parameter.getType.resolve().describe())
+    val typeFullName = registerType(tryResolveType(parameter))
     val parameterNode = NewMethodParameterIn()
       .name(parameter.getName.toString)
       .code(parameter.toString)
@@ -973,7 +984,7 @@ class AstCreator(filename: String, global: Global) {
   }
 
   private def paramListSignature(methodDeclaration: MethodDeclaration) = {
-    val paramTypes = methodDeclaration.getParameters.asScala.map(_.getType.resolve().describe())
+    val paramTypes = methodDeclaration.getParameters.asScala.map(tryResolveType)
     "(" + paramTypes.mkString(",") + ")"
   }
 }
