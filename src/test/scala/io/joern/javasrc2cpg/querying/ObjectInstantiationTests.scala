@@ -37,7 +37,7 @@ class ObjectInstantiationTests extends JavaSrcCodeToCpgFixture {
 
     withClue("assignee should be created correctly") {
       assignee.name shouldBe "f"
-      assignee.typeFullName shouldBe "<empty>"
+      assignee.typeFullName shouldBe "<unresolved>.Foo"
     }
 
     withClue("initializer should be created correctly") {
