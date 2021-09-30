@@ -36,3 +36,22 @@ Some general development habits for the project:
   e.g. `fabs/control-structure-nodes`.
 - We currently focus around test driven development. Pay attention to the code coverage when creating new tests and 
   features. The code coverage report can be found under `./target/scala-2.13/scoverage-report`.
+
+### TODO
+- [x] Explicit constructor invocations
+- [ ] Local class declaration statements
+- [ ] Lambda expressions
+- [ ] Method Reference Expr
+- [ ] Throw statements (AST is simple, control flow to catch seems harder)
+- [ ] `this`/`super` expressions (scope for FieldAccess)
+- [ ] Type expressions (part of MethodReferenceExpr)
+- [ ] `instanceof` 
+- [ ] Pattern expr as part of `instanceof` (Java 14)
+- [ ] `switch` expressions (including `yield` statements) (Introduced Java 12/13)
+- [ ] Local record declaration statements (Java 14 Preview feature)
+
+### MAYBE TODO
+- [ ] Type arguments for generics
+- [ ] Annotations
+- [ ] Cast expressions (maybe not necessary if `javaparser` resolves types correctly)
+- [ ] Synchronized statements (if we don't just ignore those)
