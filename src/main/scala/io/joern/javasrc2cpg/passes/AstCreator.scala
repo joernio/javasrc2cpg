@@ -1,7 +1,10 @@
 package io.joern.javasrc2cpg.passes
 
+import com.github.javaparser.ast.`type`.Type
 import com.github.javaparser.ast.{CompilationUnit, Node, PackageDeclaration}
 import com.github.javaparser.ast.body.{
+  CallableDeclaration,
+  ConstructorDeclaration,
   MethodDeclaration,
   Parameter,
   TypeDeclaration,
@@ -97,6 +100,7 @@ import io.shiftleft.codepropertygraph.generated.nodes.{
   NewLocal,
   NewMember,
   NewMethod,
+  NewMethodBuilder,
   NewMethodParameterIn,
   NewMethodReturn,
   NewNamespaceBlock,
@@ -214,7 +218,13 @@ class AstCreator(filename: String, global: Global) {
       .astParentType("NAMESPACE_BLOCK")
       .astParentFullName(namespaceBlockFullName)
 
-    val methodAsts = withOrder(typ.getMethods) { (m, order) => astForMethod(m, typ, order) }
+    val constructorAsts = withOrder(typ.getConstructors) { (c, order) =>
+      astForConstructor(c, typ, order)
+    }
+
+    val methodAsts = withOrder(typ.getMethods) { (m, order) =>
+      astForMethod(m, typ, order + typ.getConstructors.size)
+    }
 
     val memberAsts = typ.getMembers.asScala
       .filter(_.isFieldDeclaration)
@@ -230,6 +240,7 @@ class AstCreator(filename: String, global: Global) {
 
     Ast(typeDecl)
       .withChildren(memberAsts)
+      .withChildren(constructorAsts)
       .withChildren(methodAsts)
   }
 
@@ -243,6 +254,22 @@ class AstCreator(filename: String, global: Global) {
         .order(order)
         .code(s"$typeFullName $name")
     )
+  }
+
+  private def astForConstructor(
+      constructorDeclaration: ConstructorDeclaration,
+      typeDecl: TypeDeclaration[_],
+      childNum: Int
+  ): Ast = {
+    val constructorNode = createConstructorNode(constructorDeclaration, typeDecl, childNum)
+    val parameterAsts = withOrder(constructorDeclaration.getParameters) { (p, order) =>
+      astForParameter(p, order)
+    }
+    val lastOrder = 2 + parameterAsts.size
+    Ast(constructorNode)
+      .withChildren(parameterAsts)
+      .withChild(astForMethodBody(Some(constructorDeclaration.getBody), lastOrder))
+      .withChild(astForConstructorReturn(constructorDeclaration))
   }
 
   private def astForMethod(
@@ -272,29 +299,67 @@ class AstCreator(filename: String, global: Global) {
     Ast(methodReturnNode)
   }
 
+  private def astForConstructorReturn(constructorDeclaration: ConstructorDeclaration): Ast = {
+    val typeFullName = Try(constructorDeclaration.resolve().declaringType().getName)
+      .getOrElse(s"<unresolved>.${constructorDeclaration.getNameAsString}")
+    val constructorReturnNode =
+      NewMethodReturn()
+        .order(constructorDeclaration.getParameters.size + 2)
+        .typeFullName(typeFullName)
+        .code(constructorDeclaration.getNameAsString)
+        .lineNumber(constructorDeclaration.getEnd.map(x => Integer.valueOf(x.line)).toScala)
+    Ast(constructorReturnNode)
+  }
+
+  /** Constructor and Method declarations share a lot of fields, so this method adds the fields they have in common.
+    * `fullName` and `signature` are omitted
+    */
+  private def createPartialMethod(
+      declaration: CallableDeclaration[_],
+      childNum: Int
+  ): NewMethodBuilder = {
+    val code         = declaration.getDeclarationAsString.trim
+    val columnNumber = declaration.getBegin.map(x => Integer.valueOf(x.column)).toScala
+    val endLine      = declaration.getEnd.map(x => Integer.valueOf(x.line)).toScala
+    val endColumn    = declaration.getEnd.map(x => Integer.valueOf(x.column)).toScala
+
+    val methodNode = NewMethod()
+      .name(declaration.getNameAsString)
+      .code(code)
+      .isExternal(false)
+      .order(childNum)
+      .filename(filename)
+      .lineNumber(line(declaration))
+      .columnNumber(columnNumber)
+      .lineNumberEnd(endLine)
+      .columnNumberEnd(endColumn)
+
+    methodNode
+  }
+
+  private def createConstructorNode(
+      constructorDeclaration: ConstructorDeclaration,
+      typeDecl: TypeDeclaration[_],
+      childNum: Int
+  ): NewMethodBuilder = {
+    val fullName = constructorFullName(typeDecl, constructorDeclaration)
+    val signature =
+      constructorDeclaration.getNameAsString + paramListSignature(constructorDeclaration)
+    createPartialMethod(constructorDeclaration, childNum)
+      .fullName(fullName)
+      .signature(signature)
+  }
+
   private def createMethodNode(
       methodDeclaration: MethodDeclaration,
       typeDecl: TypeDeclaration[_],
       childNum: Int
   ) = {
-    val fullName     = methodFullName(typeDecl, methodDeclaration)
-    val code         = methodDeclaration.getDeclarationAsString().trim
-    val columnNumber = methodDeclaration.getBegin.map(x => Integer.valueOf(x.column)).asScala
-    val endLine      = methodDeclaration.getEnd.map(x => Integer.valueOf(x.line)).asScala
-    val endColumn    = methodDeclaration.getEnd.map(x => Integer.valueOf(x.column)).asScala
-    val methodNode = NewMethod()
-      .name(methodDeclaration.getNameAsString)
+    val fullName  = methodFullName(typeDecl, methodDeclaration)
+    val signature = methodDeclaration.getTypeAsString + paramListSignature(methodDeclaration)
+    createPartialMethod(methodDeclaration, childNum)
       .fullName(fullName)
-      .code(code)
-      .signature(methodDeclaration.getTypeAsString + paramListSignature(methodDeclaration))
-      .isExternal(false)
-      .order(childNum)
-      .filename(filename)
-      .lineNumber(line(methodDeclaration))
-      .columnNumber(columnNumber)
-      .lineNumberEnd(endLine)
-      .columnNumberEnd(endColumn)
-    methodNode
+      .signature(signature)
   }
 
   private def astForMethodBody(body: Option[BlockStmt], order: Int): Ast = {
@@ -323,29 +388,30 @@ class AstCreator(filename: String, global: Global) {
 
   private def astsForStatement(statement: Statement, order: Int): Seq[Ast] = {
     statement match {
-      case x: AssertStmt                        => Seq(astForAssertStatement(x, order))
-      case x: BlockStmt                         => Seq(astForBlockStatement(x, order))
-      case x: BreakStmt                         => Seq(astForBreakStatement(x, order))
-      case x: ContinueStmt                      => Seq(astForContinueStatement(x, order))
-      case x: DoStmt                            => Seq(astForDo(x, order))
-      case x: EmptyStmt                         => Seq()
-      case x: ExplicitConstructorInvocationStmt => Seq() // TODO: translate to Call
-      case x: ExpressionStmt                    => astsForExpression(x.getExpression, order)
-      case x: ForEachStmt                       => Seq(astForForEach(x, order))
-      case x: ForStmt                           => Seq(astForFor(x, order))
-      case x: IfStmt                            => Seq(astForIf(x, order))
-      case x: LabeledStmt                       => astsForLabeledStatement(x, order)
-      case x: LocalClassDeclarationStmt         => Seq()
-      case x: LocalRecordDeclarationStmt        => Seq()
-      case x: ReturnStmt                        => astsForReturnNode(x, order)
-      case x: SwitchStmt                        => Seq(astForSwitchStatement(x, order))
-      case x: SynchronizedStmt                  => Seq()
-      case x: ThrowStmt                         => Seq()
-      case x: TryStmt                           => Seq(astForTry(x, order))
-      case x: UnparsableStmt                    => Seq() // TODO: log a warning
-      case x: WhileStmt                         => Seq(astForWhile(x, order))
-      case x: YieldStmt                         => Seq()
-      case _                                    => Seq()
+      case x: AssertStmt   => Seq(astForAssertStatement(x, order))
+      case x: BlockStmt    => Seq(astForBlockStatement(x, order))
+      case x: BreakStmt    => Seq(astForBreakStatement(x, order))
+      case x: ContinueStmt => Seq(astForContinueStatement(x, order))
+      case x: DoStmt       => Seq(astForDo(x, order))
+      case x: EmptyStmt    => Seq() // Intentionally skipping this
+      case x: ExplicitConstructorInvocationStmt =>
+        Seq(astForExplicitConstructorInvocation(x, order))
+      case x: ExpressionStmt             => astsForExpression(x.getExpression, order)
+      case x: ForEachStmt                => Seq(astForForEach(x, order))
+      case x: ForStmt                    => Seq(astForFor(x, order))
+      case x: IfStmt                     => Seq(astForIf(x, order))
+      case x: LabeledStmt                => astsForLabeledStatement(x, order)
+      case x: LocalClassDeclarationStmt  => Seq()
+      case x: LocalRecordDeclarationStmt => Seq()
+      case x: ReturnStmt                 => astsForReturnNode(x, order)
+      case x: SwitchStmt                 => Seq(astForSwitchStatement(x, order))
+      case x: SynchronizedStmt           => Seq()
+      case x: ThrowStmt                  => Seq()
+      case x: TryStmt                    => Seq(astForTry(x, order))
+      case x: UnparsableStmt             => Seq() // TODO: log a warning
+      case x: WhileStmt                  => Seq(astForWhile(x, order))
+      case x: YieldStmt                  => Seq()
+      case _                             => Seq()
     }
   }
 
@@ -489,6 +555,8 @@ class AstCreator(filename: String, global: Global) {
       .code(stmt.toString)
       .argumentIndex(order)
       .order(order)
+      .lineNumber(line(stmt))
+      .columnNumber(column(stmt))
 
     val args = astsForExpression(stmt.getCheck, 1)
     callAst(callNode, args)
@@ -840,6 +908,41 @@ class AstCreator(filename: String, global: Global) {
     callAst(callNode, args)
   }
 
+  private def astForSuperExpr(expr: SuperExpr, order: Int): Ast = {
+    // TODO
+    Ast(NewUnknown().code(expr.toString))
+  }
+
+  private def astForThisExpr(expr: ThisExpr, order: Int): Ast = {
+    val typeName = expr.getTypeName
+    Ast(NewUnknown().code(expr.toString))
+  }
+
+  private def astForExplicitConstructorInvocation(
+      stmt: ExplicitConstructorInvocationStmt,
+      order: Int
+  ): Ast = {
+    val name = Try(
+      stmt.resolve().getQualifiedName
+    ).getOrElse(
+      // TODO: add an unresolved guess here
+      s"<empty>"
+    )
+    val callNode = NewCall()
+      .name(name)
+      .methodFullName(name)
+      .argumentIndex(order)
+      .order(order)
+      .code(stmt.toString)
+      .lineNumber(line(stmt))
+      .columnNumber(column(stmt))
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+
+    val args = withOrder(stmt.getArguments) { case (s, o) => astsForExpression(s, o) }.flatten
+
+    callAst(callNode, args)
+  }
+
   private def astsForExpression(expression: Expression, order: Int): Seq[Ast] = {
     expression match {
       case x: AnnotationExpr          => Seq()
@@ -861,9 +964,9 @@ class AstCreator(filename: String, global: Global) {
       case x: NameExpr                => Seq(astForNameExpr(x, order))
       case x: ObjectCreationExpr      => Seq(astForObjectCreationExpr(x, order))
       case x: PatternExpr             => Seq()
-      case x: SuperExpr               => Seq()
+      case x: SuperExpr               => Seq(astForSuperExpr(x, order))
       case x: SwitchExpr              => Seq()
-      case x: ThisExpr                => Seq()
+      case x: ThisExpr                => Seq(astForThisExpr(x, order))
       case x: TypeExpr                => Seq()
       case x: UnaryExpr               => Seq(astForUnaryExpr(x, order))
       case x: VariableDeclarationExpr => astForVariableDecl(x, order)
@@ -977,13 +1080,22 @@ class AstCreator(filename: String, global: Global) {
       typeDecl: TypeDeclaration[_],
       methodDeclaration: MethodDeclaration
   ): String = {
-    val typeName   = typeDecl.getFullyQualifiedName.asScala.getOrElse("")
+    val typeName   = typeDecl.getFullyQualifiedName.toScala.getOrElse("")
     val returnType = methodDeclaration.getTypeAsString
     val methodName = methodDeclaration.getNameAsString
     s"$typeName.$methodName:$returnType${paramListSignature(methodDeclaration)}"
   }
 
-  private def paramListSignature(methodDeclaration: MethodDeclaration) = {
+  private def constructorFullName(
+      typeDecl: TypeDeclaration[_],
+      constructorDeclaration: ConstructorDeclaration
+  ): String = {
+    val typeName   = typeDecl.getFullyQualifiedName.toScala.getOrElse("")
+    val methodName = constructorDeclaration.getNameAsString
+    s"$typeName.$methodName:$typeName${paramListSignature(constructorDeclaration)}"
+  }
+
+  private def paramListSignature(methodDeclaration: CallableDeclaration[_]) = {
     val paramTypes = methodDeclaration.getParameters.asScala.map(tryResolveType)
     "(" + paramTypes.mkString(",") + ")"
   }
@@ -991,11 +1103,11 @@ class AstCreator(filename: String, global: Global) {
 
 object AstCreator {
   def line(node: Node): Option[Integer] = {
-    node.getBegin.map(x => Integer.valueOf(x.line)).asScala
+    node.getBegin.map(x => Integer.valueOf(x.line)).toScala
   }
 
   def column(node: Node): Option[Integer] = {
-    node.getBegin.map(x => Integer.valueOf(x.column)).asScala
+    node.getBegin.map(x => Integer.valueOf(x.column)).toScala
   }
 
   def withOrder[T <: Node, X](nodeList: java.util.List[T])(f: (T, Int) => X): Seq[X] = {
