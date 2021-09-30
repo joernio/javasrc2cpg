@@ -908,16 +908,6 @@ class AstCreator(filename: String, global: Global) {
     callAst(callNode, args)
   }
 
-  private def astForSuperExpr(expr: SuperExpr, order: Int): Ast = {
-    // TODO
-    Ast(NewUnknown().code(expr.toString))
-  }
-
-  private def astForThisExpr(expr: ThisExpr, order: Int): Ast = {
-    val typeName = expr.getTypeName
-    Ast(NewUnknown().code(expr.toString))
-  }
-
   private def astForExplicitConstructorInvocation(
       stmt: ExplicitConstructorInvocationStmt,
       order: Int
@@ -964,9 +954,9 @@ class AstCreator(filename: String, global: Global) {
       case x: NameExpr                => Seq(astForNameExpr(x, order))
       case x: ObjectCreationExpr      => Seq(astForObjectCreationExpr(x, order))
       case x: PatternExpr             => Seq()
-      case x: SuperExpr               => Seq(astForSuperExpr(x, order))
+      case x: SuperExpr               => Seq()
       case x: SwitchExpr              => Seq()
-      case x: ThisExpr                => Seq(astForThisExpr(x, order))
+      case x: ThisExpr                => Seq()
       case x: TypeExpr                => Seq()
       case x: UnaryExpr               => Seq(astForUnaryExpr(x, order))
       case x: VariableDeclarationExpr => astForVariableDecl(x, order)
