@@ -388,14 +388,14 @@ class AstCreator(filename: String, global: Global) {
 
   private def astsForStatement(statement: Statement, order: Int): Seq[Ast] = {
     statement match {
-      case x: AssertStmt   => Seq(astForAssertStatement(x, order))
-      case x: BlockStmt    => Seq(astForBlockStatement(x, order))
-      case x: BreakStmt    => Seq(astForBreakStatement(x, order))
-      case x: ContinueStmt => Seq(astForContinueStatement(x, order))
-      case x: DoStmt       => Seq(astForDo(x, order))
-      case x: EmptyStmt    => Seq() // Intentionally skipping this
       case x: ExplicitConstructorInvocationStmt =>
         Seq(astForExplicitConstructorInvocation(x, order))
+      case x: AssertStmt                 => Seq(astForAssertStatement(x, order))
+      case x: BlockStmt                  => Seq(astForBlockStatement(x, order))
+      case x: BreakStmt                  => Seq(astForBreakStatement(x, order))
+      case x: ContinueStmt               => Seq(astForContinueStatement(x, order))
+      case x: DoStmt                     => Seq(astForDo(x, order))
+      case x: EmptyStmt                  => Seq() // Intentionally skipping this
       case x: ExpressionStmt             => astsForExpression(x.getExpression, order)
       case x: ForEachStmt                => Seq(astForForEach(x, order))
       case x: ForStmt                    => Seq(astForFor(x, order))
