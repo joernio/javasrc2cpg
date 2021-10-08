@@ -3,7 +3,7 @@ organization := "io.joern"
 
 scalaVersion := "2.13.6"
 
-val cpgVersion       = "1.3.322"
+val cpgVersion       = "1.3.353"
 val scalatestVersion = "3.1.1"
 
 Test / fork := true
@@ -14,6 +14,10 @@ resolvers ++= Seq(
 )
 
 trapExit := false
+
+scalacOptions ++= Seq(
+  "-deprecation" // Emit warning and location for usages of deprecated APIs.
+)
 
 libraryDependencies ++= Seq(
   "io.shiftleft"  %% "codepropertygraph"        % cpgVersion,
