@@ -39,7 +39,8 @@ Some general development habits for the project:
 
 ### TODO
 - [x] Explicit constructor invocations
-- [ ] Propagate context up and down while creating AST
+- [x] Propagate context up and down while creating AST
+- [ ] Logging
 - [ ] Handle body of `try`/`catch` 
 - [ ] Local class declaration statements
 - [ ] Lambda expressions
