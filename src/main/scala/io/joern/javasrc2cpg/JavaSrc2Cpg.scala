@@ -21,6 +21,8 @@ import scala.jdk.CollectionConverters.EnumerationHasAsScala
 
 object JavaSrc2Cpg {
   val language = "JAVAPARSER"
+
+  def apply(): JavaSrc2Cpg = new JavaSrc2Cpg()
 }
 
 class JavaSrc2Cpg {
