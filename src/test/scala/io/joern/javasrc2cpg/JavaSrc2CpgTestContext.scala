@@ -1,6 +1,7 @@
 package io.joern.javasrc2cpg
 
 import io.shiftleft.codepropertygraph.Cpg
+import io.shiftleft.dataflowengineoss.layers.dataflows.{OssDataFlow, OssDataFlowOptions}
 import io.shiftleft.semanticcpg.layers.{LayerCreatorContext, Scpg}
 
 import java.io.{File, PrintWriter}
@@ -10,12 +11,16 @@ class JavaSrc2CpgTestContext {
   private var code: String = ""
   private var buildResult = Option.empty[Cpg]
 
-  def buildCpg: Cpg = {
+  def buildCpg(runDataflow: Boolean): Cpg = {
     if (buildResult.isEmpty) {
       val javaSrc2Cpg = JavaSrc2Cpg()
       val cpg = javaSrc2Cpg.createCpg(writeCodeToFile(code).getAbsolutePath)
       val context = new LayerCreatorContext(cpg)
       new Scpg().run(context)
+      if (runDataflow) {
+        val options = new OssDataFlowOptions()
+        new OssDataFlow(options).run(context)
+      }
       buildResult = Some(cpg)
     }
     buildResult.get
@@ -40,6 +45,12 @@ object JavaSrc2CpgTestContext {
   def buildCpg(code: String): Cpg = {
     new JavaSrc2CpgTestContext()
       .withSource(code)
-      .buildCpg
+      .buildCpg(runDataflow = false)
+  }
+
+  def buildCpgWithDataflow(code: String): Cpg = {
+    new JavaSrc2CpgTestContext()
+      .withSource(code)
+      .buildCpg(runDataflow = true)
   }
 }
