@@ -591,16 +591,47 @@ class AstCreator(filename: String, global: Global) {
     }
   }
 
+  private def astForElse(maybeStmt: Option[Statement], scopeContext: ScopeContext, order: Int): Option[AstWithCtx] = {
+    maybeStmt.map { stmt =>
+      val elseAstsWithCtx = astsForStatement(stmt, scopeContext, 1)
+
+      val elseNode =
+        NewControlStructure()
+          .controlStructureType(ControlStructureTypes.ELSE)
+          .order(order)
+          .argumentIndex(order)
+          .lineNumber(line(stmt))
+          .columnNumber(column(stmt))
+          .code("else")
+
+      AstWithCtx(
+        Ast(elseNode).withChildren(elseAstsWithCtx.map(_.ast)),
+        mergedCtx(elseAstsWithCtx.map(_.ctx))
+      )
+    }
+  }
+
   def astForIf(stmt: IfStmt, scopeContext: ScopeContext, order: Int): AstWithCtx = {
-    val ifNode = NewControlStructure().controlStructureType(ControlStructureTypes.IF).order(order)
+    val ifNode =
+      NewControlStructure()
+        .controlStructureType(ControlStructureTypes.IF)
+        .order(order)
+        .argumentIndex(order)
+        .lineNumber(line(stmt))
+        .columnNumber(column(stmt))
+        .code(stmt.toString)
+
     val conditionAstWithCtx =
       astsForExpression(stmt.getCondition, scopeContext, order = 1).headOption
         .getOrElse(AstWithCtx.empty)
-    val stmtAstsWithCtx = astsForStatement(stmt.getThenStmt, scopeContext, order = 2)
+
+    val thenAstsWithCtx = astsForStatement(stmt.getThenStmt, scopeContext, order = 2)
+    val elseAstWithCtx = astForElse(stmt.getElseStmt.toScala, scopeContext, order = 3)
 
     val ast = Ast(ifNode)
       .withChild(conditionAstWithCtx.ast)
-      .withChildren(stmtAstsWithCtx.map(_.ast))
+      .withChildren(thenAstsWithCtx.map(_.ast))
+      .withChildren(elseAstWithCtx.map(_.ast).toList)
 
     val ifAst = conditionAstWithCtx.ast.root match {
       case Some(r) =>
@@ -608,7 +639,10 @@ class AstCreator(filename: String, global: Global) {
       case None =>
         ast
     }
-    val ctx = conditionAstWithCtx.ctx.mergeWith(stmtAstsWithCtx.map(_.ctx))
+    val ctx =
+      conditionAstWithCtx.ctx
+        .mergeWith(thenAstsWithCtx.map(_.ctx))
+        .mergeWith(elseAstWithCtx.map(_.ctx))
 
     AstWithCtx(ifAst, ctx)
   }
