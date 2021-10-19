@@ -1,8 +1,11 @@
 package io.joern.javasrc2cpg
 
 import io.shiftleft.codepropertygraph.Cpg
+import io.shiftleft.codepropertygraph.generated.EdgeTypes
 import io.shiftleft.dataflowengineoss.layers.dataflows.{OssDataFlow, OssDataFlowOptions}
 import io.shiftleft.semanticcpg.layers.{LayerCreatorContext, Scpg}
+
+import scala.jdk.CollectionConverters._
 
 import java.io.{File, PrintWriter}
 import java.nio.file.Files

@@ -1,6 +1,7 @@
 package io.joern.javasrc2cpg.querying
 
 import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
+import io.shiftleft.codepropertygraph.generated.Languages
 import io.shiftleft.semanticcpg.language._
 
 class MetaDataTests extends JavaSrcCodeToCpgFixture {
@@ -12,7 +13,7 @@ class MetaDataTests extends JavaSrcCodeToCpgFixture {
 
   "should contain exactly one node with all mandatory fields set" in {
     val List(x) = cpg.metaData.l
-    x.language shouldBe "JAVAPARSER"
+    x.language shouldBe Languages.JAVASRC
     x.version shouldBe "0.1"
     x.overlays shouldBe List("semanticcpg")
   }

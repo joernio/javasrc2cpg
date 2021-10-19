@@ -2,7 +2,7 @@ package io.joern.javasrc2cpg.testfixtures
 
 import io.joern.javasrc2cpg.JavaSrc2CpgTestContext
 import io.shiftleft.codepropertygraph.Cpg
-import io.shiftleft.codepropertygraph.generated.nodes.{AstNode, Expression, Literal, Method}
+import io.shiftleft.codepropertygraph.generated.nodes.{Expression, Literal}
 import io.shiftleft.dataflowengineoss.queryengine.{EngineConfig, EngineContext}
 import io.shiftleft.dataflowengineoss.semanticsloader.{Parser, Semantics}
 import io.shiftleft.semanticcpg.language._
@@ -16,7 +16,7 @@ class JavaDataflowFixture extends AnyFlatSpec with Matchers {
   val semanticsFile: String = ProjectRoot.relativise("src/test/resources/default.semantics")
   lazy val defaultSemantics: Semantics = Semantics.fromList(new Parser().parseFile(semanticsFile))
   implicit val resolver: ICallResolver = NoResolve
-  implicit val engineContext: EngineContext = EngineContext(defaultSemantics, EngineConfig(maxCallDepth = 4))
+  implicit lazy val engineContext: EngineContext = EngineContext(defaultSemantics, EngineConfig(maxCallDepth = 4))
 
   val code: String = ""
   lazy val cpg: Cpg = JavaSrc2CpgTestContext.buildCpgWithDataflow(code)
