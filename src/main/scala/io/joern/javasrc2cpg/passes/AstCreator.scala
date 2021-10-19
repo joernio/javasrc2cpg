@@ -623,7 +623,7 @@ class AstCreator(filename: String, global: Global) {
         .argumentIndex(order)
         .lineNumber(line(stmt))
         .columnNumber(column(stmt))
-        .code(stmt.toString)
+        .code(s"if (${stmt.getCondition.toString})")
 
     val conditionAstWithCtx =
       astsForExpression(stmt.getCondition, scopeContext, order = 1).headOption

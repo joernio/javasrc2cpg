@@ -117,6 +117,7 @@ class ControlStructureTests extends JavaSrcCodeToCpgFixture {
 
   "should identify an else block" in {
     val ifBlock = cpg.method.name("elseTest").ifBlock.head
+    ifBlock.code shouldBe "if (b)"
     val List(condition: Identifier, thenBlock: Block, elseBlock: ControlStructure) = ifBlock.astChildren.l
     condition.code shouldBe "b"
     condition.order shouldBe 1
