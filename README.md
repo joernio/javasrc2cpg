@@ -40,6 +40,7 @@ Some general development habits for the project:
 ### TODO
 - [x] Explicit constructor invocations
 - [x] Propagate context up and down while creating AST
+- [ ] `code` field for method calls (`this` for `System.out` in `System.out.println`)
 - [ ] Logging
 - [ ] Handle body of `try`/`catch` 
 - [ ] Local class declaration statements
