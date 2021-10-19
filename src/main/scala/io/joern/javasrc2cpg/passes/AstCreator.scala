@@ -591,7 +591,11 @@ class AstCreator(filename: String, global: Global) {
     }
   }
 
-  private def astForElse(maybeStmt: Option[Statement], scopeContext: ScopeContext, order: Int): Option[AstWithCtx] = {
+  private def astForElse(
+      maybeStmt: Option[Statement],
+      scopeContext: ScopeContext,
+      order: Int
+  ): Option[AstWithCtx] = {
     maybeStmt.map { stmt =>
       val elseAstsWithCtx = astsForStatement(stmt, scopeContext, 1)
 
@@ -626,7 +630,7 @@ class AstCreator(filename: String, global: Global) {
         .getOrElse(AstWithCtx.empty)
 
     val thenAstsWithCtx = astsForStatement(stmt.getThenStmt, scopeContext, order = 2)
-    val elseAstWithCtx = astForElse(stmt.getElseStmt.toScala, scopeContext, order = 3)
+    val elseAstWithCtx  = astForElse(stmt.getElseStmt.toScala, scopeContext, order = 3)
 
     val ast = Ast(ifNode)
       .withChild(conditionAstWithCtx.ast)
