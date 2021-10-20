@@ -36,7 +36,7 @@ class AstCreationPass(codeDir: String, filenames: List[String], cpg: Cpg, keyPoo
     val parser       = new JavaParser(parserConfig)
     val parseResult  = parser.parse(new java.io.File(filename))
 
-    parseResult.getResult.asScala match {
+    parseResult.getResult.toScala match {
       case Some(result) if result.getParsed == Parsedness.PARSED =>
         new AstCreator(filename, global).createAst(result)
       case _ =>

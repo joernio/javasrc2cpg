@@ -1,7 +1,7 @@
 package io.joern.javasrc2cpg.querying
 
 import io.joern.javasrc2cpg.testfixtures.JavaSrcCodeToCpgFixture
-import io.shiftleft.codepropertygraph.generated.nodes.{Block, ControlStructure, Identifier, Local}
+import io.shiftleft.codepropertygraph.generated.nodes.{Block, Call, ControlStructure, Identifier, Local}
 import io.shiftleft.semanticcpg.language._
 import org.scalatest.Ignore
 
@@ -54,6 +54,15 @@ class ControlStructureTests extends JavaSrcCodeToCpgFixture {
       | } while(i < 11);
       |}
       |
+      |    public void elseTest(boolean b) {
+      |        int x;
+      |        if (b) {
+      |            x = 42;
+      |        } else {
+      |            x = 39;
+      |        }
+      |    }
+      |
       |}
       |""".stripMargin
 
@@ -104,5 +113,27 @@ class ControlStructureTests extends JavaSrcCodeToCpgFixture {
     variable.typeFullName shouldBe "java.lang.Integer"
 
     body.astChildren.head.code shouldBe "sum += x"
+  }
+
+  "should identify an else block" in {
+    val ifBlock = cpg.method.name("elseTest").ifBlock.head
+    ifBlock.code shouldBe "if (b)"
+    val List(condition: Identifier, thenBlock: Block, elseBlock: ControlStructure) = ifBlock.astChildren.l
+    condition.code shouldBe "b"
+    condition.order shouldBe 1
+
+    thenBlock.order shouldBe 2
+    val thenBody = thenBlock.astChildren.head.asInstanceOf[Call]
+    thenBody.code shouldBe "x = 42"
+    thenBody.argument.head.code shouldBe "x"
+    thenBody.argument.tail.head.code shouldBe "42"
+    thenBody.order shouldBe 1
+
+    elseBlock.code shouldBe "else"
+    elseBlock.controlStructureType shouldBe "ELSE"
+    elseBlock.order shouldBe 3
+    val elseAssign = elseBlock.astChildren.head.astChildren.head.asInstanceOf[Call]
+    elseAssign.order shouldBe 1
+    elseAssign.code shouldBe "x = 39"
   }
 }
