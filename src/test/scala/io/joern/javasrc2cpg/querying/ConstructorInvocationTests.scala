@@ -52,6 +52,9 @@ class ConstructorInvocationTests extends JavaSrcCodeToCpgFixture {
         cons2.fullName shouldBe "Bar.Bar:Bar(int,int)"
         cons2.signature shouldBe "Bar(int,int)"
         cons2.code shouldBe "public Bar(int x, int y)"
+
+      case res =>
+        fail(s"Expected 2 Bar constructors, but got $res")
     }
   }
 

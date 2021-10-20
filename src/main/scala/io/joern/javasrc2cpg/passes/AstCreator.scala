@@ -432,7 +432,7 @@ class AstCreator(filename: String, global: Global) {
   ): AstWithCtx = {
     val methodNode           = createMethodNode(methodDeclaration, scopeContext.typeDecl, childNum)
     val parameterAstsWithCtx = astsForParameterList(methodDeclaration.getParameters)
-    val lastOrder            = 2 + parameterAstsWithCtx.size
+    val lastOrder            = 1 + parameterAstsWithCtx.size
 
     val scopeCtxWithParams =
       scopeContext.copy(methodParameters = parameterAstsWithCtx.flatMap(_.ctx.methodParameters))
@@ -653,11 +653,18 @@ class AstCreator(filename: String, global: Global) {
 
   def astForWhile(stmt: WhileStmt, scopeContext: ScopeContext, order: Int): AstWithCtx = {
     val whileNode =
-      NewControlStructure().controlStructureType(ControlStructureTypes.WHILE).order(order)
+      NewControlStructure()
+        .controlStructureType(ControlStructureTypes.WHILE)
+        .order(order)
+        .argumentIndex(order)
+        .lineNumber(line(stmt))
+        .columnNumber(column(stmt))
+        .code(s"while (${stmt.getCondition.toString})")
+
     val conditionAstWithCtx =
-      astsForExpression(stmt.getCondition, scopeContext, order = 0).headOption
+      astsForExpression(stmt.getCondition, scopeContext, order = 1).headOption
         .getOrElse(AstWithCtx.empty)
-    val stmtAstsWithCtx = astsForStatement(stmt.getBody, scopeContext, order = 1)
+    val stmtAstsWithCtx = astsForStatement(stmt.getBody, scopeContext, order = 2)
 
     val ast = Ast(whileNode)
       .withChild(conditionAstWithCtx.ast)
@@ -716,9 +723,22 @@ class AstCreator(filename: String, global: Global) {
     AstWithCtx(Ast(node), Context())
   }
 
+  private def getForCode(stmt: ForStmt): String = {
+    val init    = stmt.getInitialization.asScala.map(_.toString).mkString(", ")
+    val compare = stmt.getCompare.toScala.map(_.toString)
+    val update  = stmt.getUpdate.asScala.map(_.toString).mkString(", ")
+    s"for ($init; $compare; $update)"
+  }
   def astForFor(stmt: ForStmt, scopeContext: ScopeContext, order: Int): AstWithCtx = {
     val forNode =
-      NewControlStructure().controlStructureType(ControlStructureTypes.FOR).order(order)
+      NewControlStructure()
+        .controlStructureType(ControlStructureTypes.FOR)
+        .order(order)
+        .argumentIndex(order)
+        .code(getForCode(stmt))
+        .lineNumber(line(stmt))
+        .columnNumber(column(stmt))
+
     val (initAstsWithCtx, scopeCtxWithInit) =
       withOrderAndCtx(stmt.getInitialization.asScala, scopeContext) { (s, scopeCtx, o) =>
         astsForExpression(s, scopeCtx, o)
@@ -726,13 +746,13 @@ class AstCreator(filename: String, global: Global) {
 
     val (compareAstsWithCtx, scopeCtxWithComp) =
       withOrderAndCtx(stmt.getCompare.toScala, scopeCtxWithInit, initAstsWithCtx.size + 1) {
-        case (x, scopeCtx, o) =>
+        (x, scopeCtx, o) =>
           astsForExpression(x, scopeCtx, o)
       }
 
     val newOrder = initAstsWithCtx.size + compareAstsWithCtx.size
     val (updateAstsWithCtx, scopeCtxWithUpdt) =
-      withOrderAndCtx(stmt.getUpdate.asScala, scopeCtxWithComp, newOrder) { (x, scopeCtx, o) =>
+      withOrderAndCtx(stmt.getUpdate.asScala, scopeCtxWithComp, newOrder + 1) { (x, scopeCtx, o) =>
         astsForExpression(x, scopeCtx, o)
       }
 
@@ -758,18 +778,15 @@ class AstCreator(filename: String, global: Global) {
   }
 
   def astForForEach(stmt: ForEachStmt, scopeContext: ScopeContext, order: Int): AstWithCtx = {
-    val forNode =
-      NewControlStructure().controlStructureType(ControlStructureTypes.FOR).order(order)
+    val forNode = NewControlStructure()
+      .controlStructureType(ControlStructureTypes.FOR)
+      .order(order)
 
-    val (iterableAstsWithCtx, scopeCtxWithIter) =
-      withOrderAndCtx(Seq(stmt.getIterable), scopeContext) { (s, scopeCtx, o) =>
-        astsForExpression(s, scopeCtx, o)
-      }
-
-    val (variableAstsWithCtx, scopeCtxWithVars) =
-      withOrderAndCtx(Seq(stmt.getVariable), scopeCtxWithIter, order) { (s, scopeCtx, o) =>
-        astsForVariableDecl(s, scopeCtx, o)
-      }
+    val iterableAstsWithCtx = astsForExpression(stmt.getIterable, scopeContext, 1)
+    val variableAstsWithCtx =
+      astsForVariableDecl(stmt.getVariable, scopeContext, iterableAstsWithCtx.size + 1)
+    val initContext      = mergedCtx((iterableAstsWithCtx ++ variableAstsWithCtx).map(_.ctx))
+    val scopeCtxWithVars = scopeContext.withNewLocals(initContext.locals)
 
     val bodyOrder       = iterableAstsWithCtx.size + variableAstsWithCtx.size + 1
     val bodyAstsWithCtx = astsForStatement(stmt.getBody, scopeCtxWithVars, bodyOrder)
@@ -849,6 +866,7 @@ class AstCreator(filename: String, global: Global) {
   ): AstWithCtx = {
     val block = NewBlock()
       .order(order)
+      .argumentIndex(order)
       .lineNumber(line(stmt))
       .columnNumber(column(stmt))
 
@@ -1079,69 +1097,93 @@ class AstCreator(filename: String, global: Global) {
     callAst(callNode, args)
   }
 
-  def astsForVariableDecl(
-      x: VariableDeclarationExpr,
-      initialScopeContext: ScopeContext,
+  private def localsForVarDecl(varDecl: VariableDeclarationExpr, order: Int): List[NewLocal] = {
+    varDecl.getVariables.asScala.zipWithIndex.map { case (variable, idx) =>
+      val name         = variable.getName.toString
+      val typeFullName = registerType(tryResolveType(variable))
+      val code         = s"${variable.getType} $name"
+
+      NewLocal().name(name).code(code).typeFullName(typeFullName).order(order + idx)
+    }.toList
+  }
+
+  private def getInitializerType(variable: VariableDeclarator): String = {
+    variable.getInitializer.toScala match {
+      case None => "<empty>"
+
+      case Some(initializer) =>
+        try {
+          registerType(initializer.calculateResolvedType().describe())
+        } catch {
+          case _: Throwable =>
+            try {
+              registerType(tryResolveType(variable))
+            } catch {
+              case _: Throwable => registerType("<empty>")
+            }
+        }
+    }
+  }
+
+  private def assignmentsForVarDecl(
+      varDecl: VariableDeclarationExpr,
+      scopeContext: ScopeContext,
       order: Int
   ): Seq[AstWithCtx] = {
-    var scopeContext = initialScopeContext
+    val variablesWithInitializers =
+      varDecl.getVariables.asScala.filter(_.getInitializer.toScala.isDefined)
+    val assignments = variablesWithInitializers.zipWithIndex map { case (variable, idx) =>
+      val name                    = variable.getName.toString
+      val initializer             = variable.getInitializer.toScala.get // Won't crash because of filter
+      val initializerTypeFullName = getInitializerType(variable)
 
-    x.getVariables.asScala.toList.flatMap { v =>
-      val name = v.getName.toString
-      val code = s"${v.getType} ${v.getName}"
-      val typeFullName =
-        try {
-          registerType(tryResolveType(v))
-        } catch {
-          case _: Throwable => registerType("<empty>")
-        }
+      val callNode = NewCall()
+        .name(Operators.assignment)
+        .code(s"$name = ${initializer.toString()}")
+        .order(order + idx)
+        .argumentIndex(order + idx)
+        .lineNumber(line(varDecl))
+        .columnNumber(column(varDecl))
+        .typeFullName(tryResolveType(variable))
+        .dispatchType(DispatchTypes.STATIC_DISPATCH)
 
-      val initializerAst = v.getInitializer.toScala.zipWithIndex.map { case (initializer, i) =>
-        val code = s"$name = ${initializer.toString}"
-        val initializerTypeFullName =
-          try {
-            registerType(initializer.calculateResolvedType().describe())
-          } catch {
-            case _: Throwable =>
-              try {
-                registerType(tryResolveType(v))
-              } catch {
-                case _: Throwable => registerType("<empty>")
-              }
-          }
+      val identifier = NewIdentifier()
+        .name(name)
+        .order(1)
+        .argumentIndex(1)
+        .code(name)
+        .typeFullName(initializerTypeFullName)
+        .lineNumber(line(variable))
+        .columnNumber(column(variable))
+      val identifierAst = AstWithCtx(Ast(identifier), Context(identifiers = Seq(identifier)))
 
-        val identifier = NewIdentifier()
-          .name(name)
-          .order(1)
-          .argumentIndex(1)
-          .code(name)
-          .typeFullName(initializerTypeFullName)
-        val identifierContext = Context(identifiers = List(identifier))
+      val initializerAstsWithCtx = astsForExpression(initializer, scopeContext, 2)
 
-        val assignment = NewCall()
-          .name(Operators.assignment)
-          .code(code)
-          .order(i + 1)
-          .argumentIndex(i + 1)
-          .lineNumber(line(x))
-          .columnNumber(column(x))
-          .dispatchType(DispatchTypes.STATIC_DISPATCH)
-          .typeFullName(typeFullName)
-
-        val initAsts             = astsForExpression(initializer, scopeContext, 2)
-        val identifierAstWithCtx = AstWithCtx(Ast(identifier), identifierContext)
-        callAst(assignment, Seq(identifierAstWithCtx) ++ initAsts)
-      }
-
-      val local = NewLocal().name(name).code(code).typeFullName(typeFullName).order(order)
-      scopeContext = scopeContext.withNewLocals(Seq(local))
-      Seq(
-        AstWithCtx(
-          Ast(local),
-          Context(locals = Seq(local))
-        )
-      ) ++ initializerAst.toList
+      callAst(callNode, Seq(identifierAst) ++ initializerAstsWithCtx)
     }
+
+    assignments.toList
+  }
+
+  def astsForVariableDecl(
+      varDecl: VariableDeclarationExpr,
+      scopeContext: ScopeContext,
+      order: Int
+  ): Seq[AstWithCtx] = {
+
+    val locals = localsForVarDecl(varDecl, order)
+    val localAsts = locals.map { local =>
+      AstWithCtx(
+        Ast(local),
+        Context(locals = Seq(local))
+      )
+    }
+
+    val assignOrder        = order + locals.size
+    val assignScopeCtx     = scopeContext.withNewLocals(locals)
+    val assignmentsWithCtx = assignmentsForVarDecl(varDecl, assignScopeCtx, assignOrder)
+
+    localAsts ++ assignmentsWithCtx
   }
 
   def callAst(rootNode: NewNode, args: Seq[AstWithCtx]): AstWithCtx = {
@@ -1258,6 +1300,8 @@ class AstCreator(filename: String, global: Global) {
       .argumentIndex(order)
       .code(name)
       .typeFullName(typeFullName)
+      .lineNumber(line(x.getName))
+      .columnNumber(column(x.getName))
 
     AstWithCtx(Ast(identifier), Context(identifiers = List(identifier)))
   }
@@ -1616,6 +1660,8 @@ class AstCreator(filename: String, global: Global) {
     val resolvedDecl = Try(call.resolve())
     val callNode     = createCallNode(call, resolvedDecl, order)
     val thisAsts = createThisNode(resolvedDecl)
+      .map(_.lineNumber(line(call)))
+      .map(_.columnNumber(column(call)))
       .map(x => AstWithCtx(Ast(x), Context(identifiers = List(x))))
       .toList
 
@@ -1713,10 +1759,12 @@ object AstCreator {
       initialOrder: Int = 1
   )(f: (T, ScopeContext, Int) => Seq[AstWithCtx]): (Seq[AstWithCtx], ScopeContext) = {
     var scopeContext = initialCtx
+    var orderOffset  = 0
 
-    val asts = nodeList.zipWithIndex.flatMap { case (x, i) =>
-      val astsWithCtx = f(x, scopeContext, initialOrder + i)
+    val asts = nodeList.flatMap { x =>
+      val astsWithCtx = f(x, scopeContext, initialOrder + orderOffset)
       val ctx         = mergedCtx(astsWithCtx.map(_.ctx))
+      orderOffset += astsWithCtx.size
       scopeContext = scopeContext.withNewLocals(ctx.locals).withNewParams(ctx.methodParameters)
       astsWithCtx
     }.toSeq
