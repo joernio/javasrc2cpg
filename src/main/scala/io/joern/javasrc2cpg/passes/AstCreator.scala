@@ -809,17 +809,57 @@ class AstCreator(filename: String, global: Global) {
       NewControlStructure()
         .controlStructureType(ControlStructureTypes.SWITCH)
         .order(order)
+        .argumentIndex(order)
         .code(s"switch(${stmt.getSelector.toString})")
+
+    val selectorAstsWithCtx = astsForExpression(stmt.getSelector, scopeContext, 1)
+    val selectorNode        = selectorAstsWithCtx.head.ast.root.get
 
     val (entryAstsWithCtx, _) = withOrderAndCtx(stmt.getEntries.asScala, scopeContext) {
       (e, scopeCtx, o) =>
         astForSwitchEntry(e, scopeCtx, o)
     }
 
-    val switchAst = Ast(switchNode).withChildren(entryAstsWithCtx.map(_.ast))
-    val ctx       = mergedCtx(entryAstsWithCtx.map(_.ctx))
+    val switchBodyAst =
+      Ast(NewBlock().order(2).argumentIndex(2)).withChildren(entryAstsWithCtx.map(_.ast))
+
+    val switchAst =
+      Ast(switchNode)
+        .withChildren(selectorAstsWithCtx.map(_.ast))
+        .withChild(switchBodyAst)
+        .withConditionEdge(switchNode, selectorNode)
+    val ctx = mergedCtx(entryAstsWithCtx.map(_.ctx))
 
     AstWithCtx(switchAst, ctx)
+  }
+
+  private def astsForSwitchCases(
+      entry: SwitchEntry,
+      scopeContext: ScopeContext,
+      order: Int
+  ): Seq[Ast] = {
+    entry.getLabels.asScala.toList match {
+      case Nil =>
+        val target = NewJumpTarget()
+          .name("default")
+          .code("default")
+          .order(order)
+          .argumentIndex(order)
+        Seq(Ast(target))
+
+      case labels =>
+        labels.zipWithIndex.flatMap { case (label, idx) =>
+          val labelOrder = order + idx
+          val jumpTarget = NewJumpTarget()
+            .name("case")
+            .code(label.toString)
+            .order(labelOrder)
+            .argumentIndex(labelOrder)
+          val labelAsts = astsForExpression(label, scopeContext, labelOrder)
+
+          Seq(Ast(jumpTarget)) ++ labelAsts.map(_.ast)
+        }
+    }
   }
 
   def astForSwitchEntry(
@@ -827,16 +867,16 @@ class AstCreator(filename: String, global: Global) {
       scopeContext: ScopeContext,
       order: Int
   ): Seq[AstWithCtx] = {
-    val labelNodes = withOrder(entry.getLabels) { (x, o) =>
-      NewJumpTarget().name(x.toString).order(o + order)
-    }
+    val labelAsts = astsForSwitchCases(entry, scopeContext, order)
 
+    val statementOrder = order + entry.getLabels.size
     val (statementAstsWithCtx, _) =
-      withOrderAndCtx(entry.getStatements.asScala, scopeContext, order) { (s, scopeCtx, o) =>
-        astsForStatement(s, scopeCtx, o + labelNodes.size)
+      withOrderAndCtx(entry.getStatements.asScala, scopeContext, statementOrder) {
+        (s, scopeCtx, o) =>
+          astsForStatement(s, scopeCtx, o)
       }
 
-    val labelAstsWithCtx = labelNodes.map { labelNode => AstWithCtx(Ast(labelNode), Context()) }
+    val labelAstsWithCtx = labelAsts.map(AstWithCtx(_, Context()))
     labelAstsWithCtx ++ statementAstsWithCtx
   }
 
