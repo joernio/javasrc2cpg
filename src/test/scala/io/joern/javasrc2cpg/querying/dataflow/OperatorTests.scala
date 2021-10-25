@@ -58,6 +58,12 @@ class OperatorTests extends JavaDataflowFixture {
     |     s += "SAFE";
     |     System.out.println(s);
     |  }
+    |
+    |  public void test9() {
+    |    String s = "SAFE";
+    |    s = "MALICIOUS";
+    |    System.out.println(s);
+    |  }
     |}
     |""".stripMargin
 
@@ -98,6 +104,11 @@ class OperatorTests extends JavaDataflowFixture {
 
   it should "track dataflow through += where safe input is added" in {
     val (source, sink) = getConstSourceSink("test8")
+    sink.reachableBy(source).size shouldBe 1
+  }
+
+  it should "find a path if safe is reassigned to malicious" in {
+    val (source, sink) = getConstSourceSink("test9")
     sink.reachableBy(source).size shouldBe 1
   }
 }
