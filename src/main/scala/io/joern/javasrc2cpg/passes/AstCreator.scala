@@ -51,6 +51,7 @@ import com.github.javaparser.ast.stmt.{
   AssertStmt,
   BlockStmt,
   BreakStmt,
+  CatchClause,
   ContinueStmt,
   DoStmt,
   EmptyStmt,
@@ -548,14 +549,59 @@ class AstCreator(filename: String, global: Global) {
     Seq(AstWithCtx(jumpTargetAst, Context())) ++ stmtAstWithCtx
   }
 
+  def astForThrow(stmt: ThrowStmt, scopeContext: ScopeContext, order: Int): AstWithCtx = {
+    val throwNode = NewCall()
+      .name("operator.<throw>")
+      .methodFullName("operator.<throw>")
+      .lineNumber(line(stmt))
+      .columnNumber(column(stmt))
+      .code(stmt.toString())
+      .order(order)
+      .argumentIndex(order)
+      .dispatchType(DispatchTypes.STATIC_DISPATCH)
+
+    val args = astsForExpression(stmt.getExpression, scopeContext, order = 1)
+
+    callAst(throwNode, args)
+  }
+
+  def astForCatchClause(
+      catchClause: CatchClause,
+      scopeContext: ScopeContext,
+      order: Int
+  ): AstWithCtx = {
+    astForBlockStatement(catchClause.getBody, scopeContext, order)
+  }
+
   def astForTry(stmt: TryStmt, scopeContext: ScopeContext, order: Int): AstWithCtx = {
     // TODO: Handle try body
     val tryNode = NewControlStructure()
       .controlStructureType(ControlStructureTypes.TRY)
       .code("try")
       .order(order)
+      .argumentIndex(order)
+      .lineNumber(line(stmt))
+      .columnNumber(column(stmt))
 
-    AstWithCtx(Ast(tryNode), Context())
+    val tryAst = astForBlockStatement(stmt.getTryBlock, scopeContext, 1, "try");
+    // Catch order must be 2 for CFG generation
+    val catchAsts = withOrder(stmt.getCatchClauses) { (s, o) =>
+      astForCatchClause(s, scopeContext, o)
+    }
+    val catchBlock = Ast(NewBlock().order(2).argumentIndex(2).code("catch"))
+      .withChildren(catchAsts.map(_.ast))
+    // Finally order must be 3 for CFG generation
+    val finallyAst =
+      stmt.getFinallyBlock.toScala.map(astForBlockStatement(_, scopeContext, 3, "finally")).toList
+
+    val ast = Ast(tryNode)
+      .withChild(tryAst.ast)
+      .withChild(catchBlock)
+      .withChildren(finallyAst.map(_.ast))
+
+    val ctx = tryAst.ctx.mergeWith(catchAsts.map(_.ctx)).mergeWith(finallyAst.map(_.ctx))
+
+    AstWithCtx(ast, ctx)
   }
 
   private def astsForStatement(
@@ -582,7 +628,7 @@ class AstCreator(filename: String, global: Global) {
       case x: ReturnStmt                 => astsForReturnNode(x, scopeContext, order)
       case x: SwitchStmt                 => Seq(astForSwitchStatement(x, scopeContext, order))
       case _: SynchronizedStmt           => Seq()
-      case _: ThrowStmt                  => Seq()
+      case x: ThrowStmt                  => Seq(astForThrow(x, scopeContext, order))
       case x: TryStmt                    => Seq(astForTry(x, scopeContext, order))
       case _: UnparsableStmt             => Seq() // TODO: log a warning
       case x: WhileStmt                  => Seq(astForWhile(x, scopeContext, order))
@@ -902,10 +948,12 @@ class AstCreator(filename: String, global: Global) {
   private def astForBlockStatement(
       stmt: BlockStmt,
       scopeContext: ScopeContext,
-      order: Int
+      order: Int,
+      codeStr: String = "<empty>"
   ): AstWithCtx = {
     val block = NewBlock()
       .order(order)
+      .code(codeStr)
       .argumentIndex(order)
       .lineNumber(line(stmt))
       .columnNumber(column(stmt))
