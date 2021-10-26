@@ -1806,7 +1806,7 @@ class AstCreator(filename: String, global: Global) {
       methodDeclaration: MethodDeclaration
   ): String = {
     val typeName   = typeDecl.map(_.fullName).getOrElse("")
-    val returnType = methodDeclaration.getTypeAsString
+    val returnType = tryResolveType(methodDeclaration)
     val methodName = methodDeclaration.getNameAsString
     s"$typeName.$methodName:$returnType${paramListSignature(methodDeclaration)}"
   }
