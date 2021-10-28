@@ -3,6 +3,7 @@ package io.joern.javasrc2cpg.querying.dataflow
 import io.joern.javasrc2cpg.testfixtures.JavaDataflowFixture
 import io.shiftleft.dataflowengineoss.language._
 
+import scala.jdk.CollectionConverters._
 class ArrayTests extends JavaDataflowFixture {
 
   behavior of "Dataflow through arrays"
@@ -97,17 +98,19 @@ class ArrayTests extends JavaDataflowFixture {
 
   it should "find a path if the `MALICIOUS` array entry is printed" in {
     val (source, sink) = getConstSourceSink("test1")
-    sink.reachableBy(source).size shouldBe 1
+    // This is 2 due to how the sink is constructed (it finds both path to the indexAccess call
+    // and the vals identifier. The same applies to following tests.
+    sink.reachableBy(source).size shouldBe 2
   }
 
   it should "find a path if an entry in the `MALICIOUS` array is printed (approximation)" in {
     val (source, sink) = getConstSourceSink("test2")
-    sink.reachableBy(source).size shouldBe 1
+    sink.reachableBy(source).size shouldBe 2
   }
 
   it should "find a path for alternative array initializer syntax" in {
     val (source, sink) = getConstSourceSink("test3")
-    sink.reachableBy(source).size shouldBe 1
+    sink.reachableBy(source).size shouldBe 2
   }
 
   it should "find a path if array element is assigned to `MALICIOUS` (approximation)" in {
@@ -117,17 +120,17 @@ class ArrayTests extends JavaDataflowFixture {
 
   it should "find a path if array element is assigned to `MALICIOUS`" in {
     val (source, sink) = getConstSourceSink("test5")
-    sink.reachableBy(source).size shouldBe 1
+    sink.reachableBy(source).size shouldBe 2
   }
 
   it should "find a path if a different array element is overwritten" in {
     val (source, sink) = getConstSourceSink("test6")
-    sink.reachableBy(source).size shouldBe 1
+    sink.reachableBy(source).size shouldBe 2
   }
 
   it should "find a path if the `MALICIOUS` array element is overwritten (approximation)" in {
     val (source, sink) = getConstSourceSink("test7")
-    sink.reachableBy(source).size shouldBe 1
+    sink.reachableBy(source).size shouldBe 2
   }
 
   it should "find a path if sink is in a `FOR` loop" in {
@@ -150,7 +153,7 @@ class ArrayTests extends JavaDataflowFixture {
 
   it should "find a path if `MALICIOUS` is assigned to safe array and printed" in {
     val (source, sink) = getConstSourceSink("test11")
-    sink.reachableBy(source).size shouldBe 1
+    sink.reachableBy(source).size shouldBe 2
   }
 
   it should "find a path if `MALICIOUS` is assigned to safe array and not printed (approximation)" in {
@@ -160,6 +163,6 @@ class ArrayTests extends JavaDataflowFixture {
 
   it should "find a path through an array alias" in {
     val (source, sink) = getConstSourceSink("test13")
-    sink.reachableBy(source).size shouldBe 1
+    sink.reachableBy(source).size shouldBe 2
   }
 }
