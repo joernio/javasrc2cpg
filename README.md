@@ -53,6 +53,7 @@ Some general development habits for the project:
 - [ ] Pattern expr as part of `instanceof` (Java 14)
 - [ ] `switch` expressions (including `yield` statements) (Introduced Java 12/13)
 - [ ] Local record declaration statements (Java 14 Preview feature)
+- [ ] Dataflow tests for inheritance
 
 ### MAYBE TODO
 - [ ] Type arguments for generics

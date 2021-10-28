@@ -67,7 +67,6 @@ class ArrayTests extends JavaSrcCodeToCpgFixture {
       val List(indexAccess: Call, _: Literal) = lhsAccess.argument.l
       indexAccess.name shouldBe Operators.indexAccess
       indexAccess.methodFullName shouldBe Operators.indexAccess
-      indexAccess.argument.foreach(println)
       val List(arg1: Identifier, arg2: Literal) = indexAccess.argument.l
       arg1.code shouldBe "x"
       arg1.name shouldBe "x"
