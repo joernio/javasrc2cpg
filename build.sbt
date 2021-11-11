@@ -1,9 +1,9 @@
 name := "javasrc2cpg"
 organization := "io.joern"
 
-scalaVersion := "2.13.6"
+scalaVersion := "2.13.7"
 
-val cpgVersion       = "1.3.391"
+val cpgVersion       = "1.3.429"
 val scalatestVersion = "3.1.1"
 
 Test / fork := true
