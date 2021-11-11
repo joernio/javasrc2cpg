@@ -15,7 +15,7 @@ class MetaDataTests extends JavaSrcCodeToCpgFixture {
     val List(x) = cpg.metaData.l
     x.language shouldBe Languages.JAVASRC
     x.version shouldBe "0.1"
-    x.overlays shouldBe List("semanticcpg")
+    x.overlays shouldBe List("base", "controlflow", "typerel", "callgraph")
   }
 
   "should not have any incoming or outgoing edges" in {

@@ -4,6 +4,7 @@ organization := "io.joern"
 scalaVersion := "2.13.7"
 
 val cpgVersion       = "1.3.429"
+val joernVersion     = "1.1.294"
 val scalatestVersion = "3.1.1"
 
 Test / fork := true
@@ -20,12 +21,12 @@ scalacOptions ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "io.shiftleft"  %% "codepropertygraph"        % cpgVersion,
-  "io.shiftleft"  %% "semanticcpg"              % cpgVersion,
-  "io.shiftleft"  %% "dataflowengineoss"        % cpgVersion,
-  "io.shiftleft"  %% "semanticcpg-tests"        % cpgVersion       % Test classifier "tests",
+  "io.shiftleft"  %% "codepropertygraph" % cpgVersion,
+  "io.shiftleft"  %% "semanticcpg"       % cpgVersion,
+  "io.joern"      %% "dataflowengineoss" % joernVersion,
   "com.github.javaparser" % "javaparser-symbol-solver-core" % "3.22.1",
-  "org.scalatest" %% "scalatest"                % scalatestVersion % Test
+  "io.shiftleft"  %% "semanticcpg" % cpgVersion % Test classifier "tests",
+  "org.scalatest" %% "scalatest" % scalatestVersion % Test
 )
 
 sonatypeCredentialHost := "s01.oss.sonatype.org"

@@ -4,8 +4,8 @@ import io.joern.javasrc2cpg.passes.AstCreationPass
 import io.shiftleft.codepropertygraph.Cpg
 import io.shiftleft.codepropertygraph.generated.Languages
 import io.shiftleft.passes.IntervalKeyPool
-import io.shiftleft.semanticcpg.passes.metadata.MetaDataPass
-import io.shiftleft.semanticcpg.passes.typenodes.TypeNodePass
+import io.shiftleft.semanticcpg.passes.frontend.MetaDataPass
+import io.shiftleft.semanticcpg.passes.frontend.TypeNodePass
 import io.shiftleft.x2cpg.SourceFiles
 import io.shiftleft.x2cpg.X2Cpg.newEmptyCpg
 
