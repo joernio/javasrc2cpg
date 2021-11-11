@@ -2,8 +2,8 @@ package io.joern.javasrc2cpg
 
 import io.shiftleft.codepropertygraph.Cpg
 import io.shiftleft.codepropertygraph.generated.EdgeTypes
-import io.shiftleft.dataflowengineoss.layers.dataflows.{OssDataFlow, OssDataFlowOptions}
-import io.shiftleft.semanticcpg.layers.{LayerCreatorContext, Scpg}
+import io.joern.dataflowengineoss.layers.dataflows.{OssDataFlow, OssDataFlowOptions}
+import io.shiftleft.semanticcpg.layers.{Base, ControlFlow, CallGraph, LayerCreatorContext, TypeRelations}
 
 import scala.jdk.CollectionConverters._
 
@@ -19,7 +19,11 @@ class JavaSrc2CpgTestContext {
       val javaSrc2Cpg = JavaSrc2Cpg()
       val cpg = javaSrc2Cpg.createCpg(writeCodeToFile(code).getAbsolutePath)
       val context = new LayerCreatorContext(cpg)
-      new Scpg().run(context)
+      new Base().run(context)
+      new ControlFlow().run(context)
+      new TypeRelations().run(context)
+      new CallGraph().run(context)
+
       if (runDataflow) {
         val options = new OssDataFlowOptions()
         new OssDataFlow(options).run(context)
